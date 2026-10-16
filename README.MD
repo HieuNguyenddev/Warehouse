@@ -124,27 +124,49 @@ docker compose up -d --build
 
 Vào repository trên GitHub: **Settings → Secrets and variables → Actions → New repository secret**.
 
-Workflow `.github/workflows/deploy.yml` chạy trên runner `ubuntu-latest` khi push lên `main` (hoặc bấm **Run workflow**) và SSH vào VPS bằng các secret sau.
+Workflow `.github/workflows/deploy.yml` giữ nguyên: runner `ubuntu-latest` dùng Drone SSH (`entrypoint.sh`) để vào VPS, rồi `git pull` và `docker compose up`.
 
 | Secret | Giá trị điền |
 | --- | --- |
-| `VPS_HOST` | IP **public** của VPS hoặc router, GitHub truy cập được từ internet. Không điền `192.168.203.130` |
-| `VPS_PORT` | Cổng SSH mở ra internet, thường là `22` |
+| `VPS_HOST` | `171.225.184.133` |
+| `VPS_PORT` | Cổng SSH đã chuyển tiếp ra internet, thường là `22` |
 | `VPS_USER` | `admin` |
-| `VPS_SSH_KEY` | Private key SSH dùng để đăng nhập user `admin` (cả khối, kể cả `BEGIN` và `END`). Public key tương ứng phải nằm trong `~/.ssh/authorized_keys` của user `admin` |
+| `VPS_SSH_KEY` | Private key SSH của user `admin` (cả khối, kể cả `BEGIN` và `END`). Public key nằm trong `~/.ssh/authorized_keys` của user `admin` |
 | `DEPLOY_PATH` | `/home/admin/Documents/port/backend/RoleManagement.Api` |
 
-Không đưa mật khẩu SQL Server hay private key vào file trong repository. Mật khẩu `sa` chỉ sửa trong `docker-compose.yml` trên VPS, hoặc thay bằng biến môi trường khi chạy Compose.
+### Lấy IP public của VPS
 
-### Lỗi `dial tcp: i/o timeout` ở bước `Run entrypoint.sh`
+SSH vào VPS rồi chạy:
 
-Log dạng `Drone SSH version 1.8.1` rồi `dial tcp ***:***: i/o timeout` nghĩa là runner của GitHub không mở được kết nối TCP tới `VPS_HOST`:`VPS_PORT`. Key SSH chưa được kiểm tra, vì kết nối chưa tới máy.
+```bash
+curl -4 ifconfig.me
+```
 
-`192.168.203.130` chỉ dùng được trong mạng LAN. Runner `ubuntu-latest` nằm trên internet nên không định tuyến tới địa chỉ này và bị timeout. Sửa trên hạ tầng và secret, workflow giữ nguyên:
+Dòng in ra là IPv4 public. Trên VPS này lệnh trả về `171.225.184.133`. Điền đúng giá trị đó vào secret `VPS_HOST`.
 
-1. Lấy IP public của đường ra internet (xem trên router, hoặc từ một máy đã ra internet). Ghi IP đó vào secret `VPS_HOST`.
-2. Trên router, chuyển tiếp cổng SSH (ví dụ cổng `22`) tới `192.168.203.130`. Cổng đã mở trên router ghi vào secret `VPS_PORT`.
-3. Trên VPS, mở cổng SSH trong firewall rồi kiểm tra `sshd` đang lắng nghe:
+Nếu `curl` không phân giải được tên miền:
+
+```bash
+dig +short myip.opendns.com @resolver1.opendns.com
+```
+
+Xem địa chỉ gắn trên card mạng:
+
+```bash
+ip -4 addr
+```
+
+Card mạng chỉ có `192.168.203.130` thì VPS không có IP public riêng. Địa chỉ lệnh trên in ra là IP public của router đang NAT. GitHub Actions SSH được khi router chuyển tiếp cổng `22` tới `192.168.203.130`, và `VPS_HOST` là IP public đó.
+
+### Lỗi `dial tcp: i/o timeout` ở `Run entrypoint.sh`
+
+Log dừng ở `Drone SSH version 1.8.1` và `dial tcp ***:***: i/o timeout` nghĩa là máy runner chưa bắt tay TCP được với `VPS_HOST`:`VPS_PORT`. Bước này chạy trước Docker, nên sửa `Dockerfile` hoặc `docker-compose.yml` không hết lỗi. Key SSH cũng chưa được dùng.
+
+`192.168.203.130` chỉ tồn tại trong LAN. Runner GitHub ở trên internet không định tuyến tới địa chỉ đó, nên sau khoảng 30 giây kết nối bị timeout. Cách SSH giữ nguyên, sửa secret và đường mạng:
+
+1. Đổi secret `VPS_HOST` thành `171.225.184.133`.
+2. Trên router, chuyển tiếp cổng SSH tới `192.168.203.130`. Ghi đúng cổng đó vào `VPS_PORT`.
+3. Trên VPS, mở SSH:
 
 ```bash
 sudo firewall-cmd --permanent --add-service=ssh
@@ -153,13 +175,11 @@ sudo systemctl enable --now sshd
 ss -lnt | grep 22
 ```
 
-4. Từ một máy **ngoài** mạng `192.168.203.0/24`, kiểm tra cổng đã vào được trước khi chạy lại Actions:
+4. Từ một máy ngoài mạng `192.168.203.0/24`, lệnh sau phải vào được shell trước khi chạy lại Actions:
 
 ```bash
-ssh -p 22 admin@<ip-public>
+ssh -p 22 admin@171.225.184.133
 ```
-
-Lệnh này vào được shell thì chạy lại workflow. Vẫn timeout thì gói chưa tới VPS: kiểm tra lại IP public, luật chuyển tiếp cổng, và firewall của router.
 
 ## 4. Test bằng Postman sau khi deploy
 
