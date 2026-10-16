@@ -64,23 +64,24 @@ docker pull mcr.microsoft.com/mssql/server:2022-latest
 
 ## 2. Clone repository về VPS
 
-Các bước clone và chạy Compose giống nhau trên Ubuntu và CentOS Stream 10. SSH vào VPS bằng `deploy@192.168.203.130`, rồi clone [testCICD](https://github.com/HieuNguyenddev/testCICD):
+Các bước clone và chạy Compose giống nhau trên Ubuntu và CentOS Stream 10. Trên VPS, tài khoản là `admin` (prompt `admin@localhost`). SSH từ máy khác bằng `admin@192.168.203.130`, rồi clone [testCICD](https://github.com/HieuNguyenddev/testCICD):
 
 ```bash
-ssh deploy@192.168.203.130
+ssh admin@192.168.203.130
 mkdir -p "$HOME/Documents/port"
 cd "$HOME/Documents/port"
 git clone https://github.com/HieuNguyenddev/testCICD.git .
 cd backend/RoleManagement.Api
 ```
 
-`~/Documents/port` nằm trong thư mục `Documents`. Với user `deploy`, đường dẫn đầy đủ là `/home/deploy/Documents/port`.
+`~/Documents/port` nằm trong thư mục `Documents` của user `admin`. Đường dẫn đầy đủ là `/home/admin/Documents/port`.
 
 Trước khi chạy, đổi mật khẩu `sa` trong `docker-compose.yml` (biến `MSSQL_SA_PASSWORD` và chuỗi `ConnectionStrings__DefaultConnection` phải giống nhau).
 
 Khởi động:
 
 ```bash
+docker compose down
 docker compose up -d --build
 ```
 
@@ -129,8 +130,67 @@ Tạo đủ các secret sau. Workflow `.github/workflows/deploy.yml` chạy khi 
 | --- | --- |
 | `VPS_HOST` | `192.168.203.130` |
 | `VPS_PORT` | `22` |
-| `VPS_USER` | `deploy` |
-| `VPS_SSH_KEY` | Private key SSH dùng để đăng nhập `deploy@192.168.203.130` (cả khối, kể cả `BEGIN` và `END`). Public key tương ứng phải nằm trong `~/.ssh/authorized_keys` của user `deploy` |
-| `DEPLOY_PATH` | `/home/deploy/Documents/port/backend/RoleManagement.Api` |
+| `VPS_USER` | `admin` |
+| `VPS_SSH_KEY` | Private key SSH dùng để đăng nhập `admin@192.168.203.130` (cả khối, kể cả `BEGIN` và `END`). Public key tương ứng phải nằm trong `~/.ssh/authorized_keys` của user `admin` |
+| `DEPLOY_PATH` | `/home/admin/Documents/port/backend/RoleManagement.Api` |
 
 Không đưa mật khẩu SQL Server hay private key vào file trong repository. Mật khẩu `sa` chỉ sửa trong `docker-compose.yml` trên VPS, hoặc thay bằng biến môi trường khi chạy Compose.
+
+## 4. Test bằng Postman sau khi deploy
+
+Trên VPS, cả hai container phải đang chạy:
+
+```bash
+cd "$HOME/Documents/port/backend/RoleManagement.Api"
+docker compose ps
+```
+
+`api` và `sqlserver` đều ở trạng thái `running` (sqlserver là `healthy`). Base URL khi gọi từ máy khác trong cùng mạng là `http://192.168.203.130:8080`. Gọi ngay trên VPS thì dùng `http://localhost:8080`.
+
+Trong Postman, mỗi request bên dưới chọn tab **Body → raw → JSON**.
+
+### Tạo vai trò
+
+`POST http://192.168.203.130:8080/api/roles`
+
+```json
+{
+  "name": "Admin",
+  "description": "Quản trị hệ thống"
+}
+```
+
+Kết quả đúng là **201 Created**. Phần body có `id`, `name`, `description` và `createdAt`. Gọi lại đúng body trên lần thứ hai trả **409 Conflict** vì tên vai trò đã tồn tại.
+
+### Xem danh sách
+
+`GET http://192.168.203.130:8080/api/roles`
+
+Kết quả đúng là **200 OK**, body là mảng các vai trò vừa tạo.
+
+### Xem một vai trò
+
+`GET http://192.168.203.130:8080/api/roles/1`
+
+Thay `1` bằng `id` trả về ở bước tạo. Kết quả đúng là **200 OK**. Id không có trong database trả **404 Not Found**.
+
+### Sửa vai trò
+
+`PUT http://192.168.203.130:8080/api/roles/1`
+
+```json
+{
+  "name": "Administrator",
+  "description": "Toàn quyền hệ thống"
+}
+```
+
+Kết quả đúng là **200 OK**, `name` trong body là `Administrator`.
+
+### Xóa vai trò
+
+`DELETE http://192.168.203.130:8080/api/roles/1`
+
+Kết quả đúng là **204 No Content**, body rỗng. Gọi lại `GET /api/roles/1` sau đó trả **404 Not Found**.
+
+Swagger cũng mở tại `http://192.168.203.130:8080/swagger` vì Compose đặt `ASPNETCORE_ENVIRONMENT=Development`. Nếu POST trả **500**, xem log API bằng `docker compose logs api --tail 50`.
