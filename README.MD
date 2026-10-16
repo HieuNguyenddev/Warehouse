@@ -42,7 +42,7 @@ sudo firewall-cmd --reload
 
 ### DNS của máy
 
-`docker pull` dùng DNS trong `/etc/resolv.conf` của máy, không dùng mục `"dns"` trong `/etc/docker/daemon.json`. Mạng này phát DNS `192.168.203.2`, và DNS đó không phân giải được `mcr.microsoft.com`, nên lệnh pull báo `lookup mcr.microsoft.com on 192.168.203.2:53: no such host`.
+`docker pull` dùng DNS trong `/etc/resolv.conf` của máy, không dùng mục `"dns"` trong `/etc/docker/daemon.json`. Khi máy ảo còn NAT, DNS là `192.168.203.2` và không phân giải được `mcr.microsoft.com`. Sau khi chuyển Bridged, card `enp2s0` là `192.168.1.5`. Nếu pull vẫn báo `no such host`, đổi DNS của card đang dùng sang DNS công cộng:
 
 Đổi DNS của card mạng đang dùng sang DNS công cộng, rồi bỏ DNS do DHCP đẩy xuống:
 
@@ -53,7 +53,7 @@ sudo nmcli connection modify "$CONN" ipv4.ignore-auto-dns yes
 sudo nmcli connection up "$CONN"
 ```
 
-`/etc/resolv.conf` phải còn `nameserver 8.8.8.8` hoặc `nameserver 1.1.1.1`, không còn `192.168.203.2`. Sau đó tải image:
+`/etc/resolv.conf` phải còn `nameserver 8.8.8.8` hoặc `nameserver 1.1.1.1`. Sau đó tải image:
 
 ```bash
 getent hosts mcr.microsoft.com
@@ -64,10 +64,10 @@ docker pull mcr.microsoft.com/mssql/server:2022-latest
 
 ## 2. Clone repository về VPS
 
-Các bước clone và chạy Compose giống nhau trên Ubuntu và CentOS Stream 10. Trên VPS, tài khoản là `admin` (prompt `admin@localhost`). SSH từ máy khác bằng `admin@192.168.203.130`, rồi clone [testCICD](https://github.com/HieuNguyenddev/testCICD):
+Các bước clone và chạy Compose giống nhau trên Ubuntu và CentOS Stream 10. Trên VPS, tài khoản là `admin` (prompt `admin@localhost`). Trong mạng nhà, SSH bằng `admin@192.168.1.5`, rồi clone [testCICD](https://github.com/HieuNguyenddev/testCICD):
 
 ```bash
-ssh admin@192.168.203.130
+ssh admin@192.168.1.5
 mkdir -p "$HOME/Documents/port"
 cd "$HOME/Documents/port"
 git clone https://github.com/HieuNguyenddev/testCICD.git .
@@ -85,7 +85,7 @@ docker compose down
 docker compose up -d --build
 ```
 
-API lắng nghe tại `http://192.168.203.130:8080`. Swagger: `http://192.168.203.130:8080/swagger`.
+Trong mạng nhà, API lắng nghe tại `http://192.168.1.5:8080`. Swagger: `http://192.168.1.5:8080/swagger`.
 
 ### Lỗi `dependency sqlserver` khi chạy Compose
 
@@ -129,7 +129,7 @@ Workflow `.github/workflows/deploy.yml` giữ nguyên: runner `ubuntu-latest` d�
 | Secret | Giá trị điền |
 | --- | --- |
 | `VPS_HOST` | `171.225.184.133` |
-| `VPS_PORT` | Cổng SSH đã chuyển tiếp ra internet, thường là `22` |
+| `VPS_PORT` | `22` |
 | `VPS_USER` | `admin` |
 | `VPS_SSH_KEY` | Private key SSH của user `admin` (cả khối, kể cả `BEGIN` và `END`). Public key nằm trong `~/.ssh/authorized_keys` của user `admin` |
 | `DEPLOY_PATH` | `/home/admin/Documents/port/backend/RoleManagement.Api` |
@@ -156,17 +156,13 @@ Xem địa chỉ gắn trên card mạng:
 ip -4 addr
 ```
 
-Card mạng chỉ có `192.168.203.130` thì VPS không có IP public riêng. Địa chỉ lệnh trên in ra là IP public của router đang NAT. GitHub Actions SSH được khi router chuyển tiếp cổng `22` tới `192.168.203.130`, và `VPS_HOST` là IP public đó.
+Máy ảo VMware Fusion đang dùng **Bridged Networking → Autodetect**. Card `enp2s0` là `192.168.1.5/24`. `171.225.184.133` là IP public của router nhà.
 
 ### Lỗi `dial tcp: i/o timeout` ở `Run entrypoint.sh`
 
-Log dừng ở `Drone SSH version 1.8.1` và `dial tcp ***:***: i/o timeout` nghĩa là máy runner chưa bắt tay TCP được với `VPS_HOST`:`VPS_PORT`. Bước này chạy trước Docker, nên sửa `Dockerfile` hoặc `docker-compose.yml` không hết lỗi. Key SSH cũng chưa được dùng.
+Log dừng ở `Drone SSH version 1.8.1` và `dial tcp ***:***: i/o timeout` nghĩa là runner GitHub chưa bắt tay TCP được với `171.225.184.133:22`. Bước này chạy trước Docker. Key SSH chưa được dùng.
 
-`192.168.203.130` chỉ tồn tại trong LAN. Runner GitHub ở trên internet không định tuyến tới địa chỉ đó, nên sau khoảng 30 giây kết nối bị timeout. Cách SSH giữ nguyên, sửa secret và đường mạng:
-
-1. Đổi secret `VPS_HOST` thành `171.225.184.133`.
-2. Trên router, chuyển tiếp cổng SSH tới `192.168.203.130`. Ghi đúng cổng đó vào `VPS_PORT`.
-3. Trên VPS, mở SSH:
+Trên máy ảo, mở SSH:
 
 ```bash
 sudo firewall-cmd --permanent --add-service=ssh
@@ -175,11 +171,22 @@ sudo systemctl enable --now sshd
 ss -lnt | grep 22
 ```
 
-4. Từ một máy ngoài mạng `192.168.203.0/24`, lệnh sau phải vào được shell trước khi chạy lại Actions:
+`ss` phải thấy `0.0.0.0:22` hoặc `*:22`. Trong mạng nhà, lệnh sau phải vào được shell:
+
+```bash
+ssh admin@192.168.1.5
+```
+
+Trên router nhà, chuyển tiếp TCP cổng `22` tới `192.168.1.5` cổng `22`. Không điền IP của Mac. Secret GitHub giữ `VPS_HOST` = `171.225.184.133` và `VPS_PORT` = `22`.
+
+Tắt Wi-Fi, dùng mạng di động, rồi kiểm tra trước khi chạy lại Actions:
 
 ```bash
 ssh -p 22 admin@171.225.184.133
+nc -vz -w 5 171.225.184.133 22
 ```
+
+`timed out` nghĩa là router hoặc nhà mạng chưa mở cổng vào. `Connection refused` nghĩa là gói đã tới nhưng không có dịch vụ cổng 22. Một số nhà mạng dùng CGNAT, khi đó `171.225.184.133` không nhận kết nối từ internet.
 
 ## 4. Test bằng Postman sau khi deploy
 
@@ -190,13 +197,13 @@ cd "$HOME/Documents/port/backend/RoleManagement.Api"
 docker compose ps
 ```
 
-`api` và `sqlserver` đều ở trạng thái `running` (sqlserver là `healthy`). Base URL khi gọi từ máy khác trong cùng mạng là `http://192.168.203.130:8080`. Gọi ngay trên VPS thì dùng `http://localhost:8080`.
+`api` và `sqlserver` đều ở trạng thái `running` (sqlserver là `healthy`). Base URL khi gọi từ máy khác trong cùng mạng là `http://192.168.1.5:8080`. Gọi ngay trên VPS thì dùng `http://localhost:8080`.
 
 Trong Postman, mỗi request bên dưới chọn tab **Body → raw → JSON**.
 
 ### Tạo vai trò
 
-`POST http://192.168.203.130:8080/api/roles`
+`POST http://192.168.1.5:8080/api/roles`
 
 ```json
 {
@@ -209,19 +216,19 @@ Kết quả đúng là **201 Created**. Phần body có `id`, `name`, `descripti
 
 ### Xem danh sách
 
-`GET http://192.168.203.130:8080/api/roles`
+`GET http://192.168.1.5:8080/api/roles`
 
 Kết quả đúng là **200 OK**, body là mảng các vai trò vừa tạo.
 
 ### Xem một vai trò
 
-`GET http://192.168.203.130:8080/api/roles/1`
+`GET http://192.168.1.5:8080/api/roles/1`
 
 Thay `1` bằng `id` trả về ở bước tạo. Kết quả đúng là **200 OK**. Id không có trong database trả **404 Not Found**.
 
 ### Sửa vai trò
 
-`PUT http://192.168.203.130:8080/api/roles/1`
+`PUT http://192.168.1.5:8080/api/roles/1`
 
 ```json
 {
@@ -234,8 +241,8 @@ Kết quả đúng là **200 OK**, `name` trong body là `Administrator`.
 
 ### Xóa vai trò
 
-`DELETE http://192.168.203.130:8080/api/roles/1`
+`DELETE http://192.168.1.5:8080/api/roles/1`
 
 Kết quả đúng là **204 No Content**, body rỗng. Gọi lại `GET /api/roles/1` sau đó trả **404 Not Found**.
 
-Swagger cũng mở tại `http://192.168.203.130:8080/swagger` vì Compose đặt `ASPNETCORE_ENVIRONMENT=Development`. Nếu POST trả **500**, xem log API bằng `docker compose logs api --tail 50`.
+Swagger cũng mở tại `http://192.168.1.5:8080/swagger` vì Compose đặt `ASPNETCORE_ENVIRONMENT=Development`. Nếu POST trả **500**, xem log API bằng `docker compose logs api --tail 50`.
