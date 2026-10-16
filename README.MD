@@ -97,6 +97,7 @@ docker compose logs sqlserver --tail 50
 
 Các nguyên nhân thường gặp:
 
+- **VPS chạy ARM64:** `docker compose up` báo `The requested image's platform (linux/amd64) does not match the detected host platform (linux/arm64)` và container thoát với mã 255. Kiểm tra bằng `uname -m` (`aarch64` là ARM64). Image `mssql/server` không có bản ARM64, nên `docker-compose.yml` dùng `mcr.microsoft.com/azure-sql-edge`, chạy được trên cả amd64 và arm64.
 - **Thiếu RAM:** log có `sqlservr: This program requires a machine with at least 2000 megabytes of memory`. SQL Server cần tối thiểu 2 GB RAM. Kiểm tra bằng `free -m`, tăng RAM của VM lên từ 2 GB (nên 4 GB).
 - **Mật khẩu `sa` không đủ mạnh:** log có `Password validation failed`. Mật khẩu cần tối thiểu 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.
 - **SELinux trên CentOS chặn volume:** log có `Permission denied` ở `/var/opt/mssql`. Chạy `sudo ausearch -m avc -ts recent` để xác nhận.

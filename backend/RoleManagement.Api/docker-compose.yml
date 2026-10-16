@@ -13,7 +13,9 @@ services:
         condition: service_healthy
 
   sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    # azure-sql-edge chạy được trên cả amd64 và arm64.
+    # mssql/server:2022-latest chỉ có bản amd64, sẽ lỗi trên VPS arm64 (aarch64).
+    image: mcr.microsoft.com/azure-sql-edge:latest
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "123456Aa@"
@@ -22,7 +24,8 @@ services:
     volumes:
       - sqlserver-data:/var/opt/mssql
     healthcheck:
-      test: ["CMD-SHELL", "SQLCMD=$$(ls /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd 2>/dev/null | head -n 1); $$SQLCMD -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q \"SELECT 1\" || exit 1"]
+      # azure-sql-edge không có sqlcmd, nên kiểm tra cổng 1433 đã mở.
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/1433' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 15
