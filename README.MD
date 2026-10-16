@@ -124,17 +124,42 @@ docker compose up -d --build
 
 Vào repository trên GitHub: **Settings → Secrets and variables → Actions → New repository secret**.
 
-Tạo đủ các secret sau. Workflow `.github/workflows/deploy.yml` chạy khi push lên `main` (hoặc bấm **Run workflow**) và SSH vào VPS bằng đúng các tên này.
+Workflow `.github/workflows/deploy.yml` chạy trên runner `ubuntu-latest` khi push lên `main` (hoặc bấm **Run workflow**) và SSH vào VPS bằng các secret sau.
 
 | Secret | Giá trị điền |
 | --- | --- |
-| `VPS_HOST` | `192.168.203.130` |
-| `VPS_PORT` | `22` |
+| `VPS_HOST` | IP **public** của VPS hoặc router, GitHub truy cập được từ internet. Không điền `192.168.203.130` |
+| `VPS_PORT` | Cổng SSH mở ra internet, thường là `22` |
 | `VPS_USER` | `admin` |
-| `VPS_SSH_KEY` | Private key SSH dùng để đăng nhập `admin@192.168.203.130` (cả khối, kể cả `BEGIN` và `END`). Public key tương ứng phải nằm trong `~/.ssh/authorized_keys` của user `admin` |
+| `VPS_SSH_KEY` | Private key SSH dùng để đăng nhập user `admin` (cả khối, kể cả `BEGIN` và `END`). Public key tương ứng phải nằm trong `~/.ssh/authorized_keys` của user `admin` |
 | `DEPLOY_PATH` | `/home/admin/Documents/port/backend/RoleManagement.Api` |
 
 Không đưa mật khẩu SQL Server hay private key vào file trong repository. Mật khẩu `sa` chỉ sửa trong `docker-compose.yml` trên VPS, hoặc thay bằng biến môi trường khi chạy Compose.
+
+### Lỗi `dial tcp: i/o timeout` ở bước `Run entrypoint.sh`
+
+Log dạng `Drone SSH version 1.8.1` rồi `dial tcp ***:***: i/o timeout` nghĩa là runner của GitHub không mở được kết nối TCP tới `VPS_HOST`:`VPS_PORT`. Key SSH chưa được kiểm tra, vì kết nối chưa tới máy.
+
+`192.168.203.130` chỉ dùng được trong mạng LAN. Runner `ubuntu-latest` nằm trên internet nên không định tuyến tới địa chỉ này và bị timeout. Sửa trên hạ tầng và secret, workflow giữ nguyên:
+
+1. Lấy IP public của đường ra internet (xem trên router, hoặc từ một máy đã ra internet). Ghi IP đó vào secret `VPS_HOST`.
+2. Trên router, chuyển tiếp cổng SSH (ví dụ cổng `22`) tới `192.168.203.130`. Cổng đã mở trên router ghi vào secret `VPS_PORT`.
+3. Trên VPS, mở cổng SSH trong firewall rồi kiểm tra `sshd` đang lắng nghe:
+
+```bash
+sudo firewall-cmd --permanent --add-service=ssh
+sudo firewall-cmd --reload
+sudo systemctl enable --now sshd
+ss -lnt | grep 22
+```
+
+4. Từ một máy **ngoài** mạng `192.168.203.0/24`, kiểm tra cổng đã vào được trước khi chạy lại Actions:
+
+```bash
+ssh -p 22 admin@<ip-public>
+```
+
+Lệnh này vào được shell thì chạy lại workflow. Vẫn timeout thì gói chưa tới VPS: kiểm tra lại IP public, luật chuyển tiếp cổng, và firewall của router.
 
 ## 4. Test bằng Postman sau khi deploy
 
