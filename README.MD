@@ -42,9 +42,7 @@ sudo firewall-cmd --reload
 
 ### DNS của máy
 
-`docker pull` dùng DNS trong `/etc/resolv.conf` của máy, không dùng mục `"dns"` trong `/etc/docker/daemon.json`. Khi máy ảo còn NAT, DNS là `192.168.203.2` và không phân giải được `mcr.microsoft.com`. Sau khi chuyển Bridged, card `enp2s0` là `192.168.1.5`. Nếu pull vẫn báo `no such host`, đổi DNS của card đang dùng sang DNS công cộng:
-
-Đổi DNS của card mạng đang dùng sang DNS công cộng, rồi bỏ DNS do DHCP đẩy xuống:
+`docker pull` dùng DNS trong `/etc/resolv.conf` của máy. Máy ảo đang Bridged, card `enp2s0` là `192.168.1.5`. Nếu pull báo `no such host`, đổi DNS của card đang dùng sang DNS công cộng và bỏ DNS do DHCP đẩy xuống:
 
 ```bash
 CONN=$(nmcli -t -f NAME,DEVICE connection show --active | awk -F: '$2 != "" && $2 != "lo" {print $1; exit}')
@@ -57,7 +55,7 @@ sudo nmcli connection up "$CONN"
 
 ```bash
 getent hosts mcr.microsoft.com
-docker pull mcr.microsoft.com/mssql/server:2022-latest
+docker pull mcr.microsoft.com/azure-sql-edge:latest
 ```
 
 `getent` phải in ra địa chỉ IP. Nếu `nslookup mcr.microsoft.com 8.8.8.8` cũng báo `no such host`, máy chưa ra internet. Khi đó cần sửa gateway hoặc NAT trước khi pull.
@@ -102,7 +100,7 @@ Các nguyên nhân thường gặp:
 - **Thiếu RAM:** log có `sqlservr: This program requires a machine with at least 2000 megabytes of memory`. SQL Server cần tối thiểu 2 GB RAM. Kiểm tra bằng `free -m`, tăng RAM của VM lên từ 2 GB (nên 4 GB).
 - **Mật khẩu `sa` không đủ mạnh:** log có `Password validation failed`. Mật khẩu cần tối thiểu 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.
 - **SELinux trên CentOS chặn volume:** log có `Permission denied` ở `/var/opt/mssql`. Chạy `sudo ausearch -m avc -ts recent` để xác nhận.
-- **Healthcheck không tìm thấy `sqlcmd`:** compose đã tự thử cả `/opt/mssql-tools18` và `/opt/mssql-tools`. Nếu log SQL Server báo đã khởi động mà container vẫn `unhealthy`, chạy `docker compose exec sqlserver ls /opt`.
+- **Image SQL Server:** `docker-compose.yml` dùng `mcr.microsoft.com/azure-sql-edge:latest` vì máy ảo là ARM64. Image `mssql/server:2022-latest` chỉ có bản amd64.
 
 Sau khi sửa, xóa container cũ và chạy lại:
 
@@ -126,13 +124,19 @@ Vào repository trên GitHub: **Settings → Secrets and variables → Actions �
 
 Workflow `.github/workflows/deploy.yml` giữ nguyên: runner `ubuntu-latest` dùng Drone SSH (`entrypoint.sh`) để vào VPS, rồi `git pull` và `docker compose up`.
 
-| Secret | Giá trị điền |
+| Thông số | Giá trị |
 | --- | --- |
-| `VPS_HOST` | `171.225.184.133` |
-| `VPS_PORT` | `22` |
-| `VPS_USER` | `admin` |
-| `VPS_SSH_KEY` | Private key SSH của user `admin` (cả khối, kể cả `BEGIN` và `END`). Public key nằm trong `~/.ssh/authorized_keys` của user `admin` |
-| `DEPLOY_PATH` | `/home/admin/Documents/port/backend/RoleManagement.Api` |
+| IP máy ảo (`enp2s0`) | `192.168.1.5` |
+| SSH trong mạng nhà | `admin@192.168.1.5` |
+| IP public của router, secret `VPS_HOST` | `171.225.184.133` |
+| Secret `VPS_PORT` | `22` |
+| Secret `VPS_USER` | `admin` |
+| Secret `VPS_SSH_KEY` | Private key SSH của user `admin` (cả khối, kể cả `BEGIN` và `END`). Public key nằm trong `~/.ssh/authorized_keys` của user `admin` |
+| Secret `DEPLOY_PATH` | `/home/admin/Documents/port/backend/RoleManagement.Api` |
+| Chuyển tiếp trên router | TCP `22` tới `192.168.1.5` cổng `22` |
+| API trong mạng nhà | `http://192.168.1.5:8080` |
+
+`192.168.1.5` là địa chỉ của máy ảo. `171.225.184.133` là địa chỉ public của router nhà, không gắn trên card mạng của máy ảo. GitHub Actions SSH tới `171.225.184.133`, router chuyển tiếp vào `192.168.1.5`.
 
 ### Lấy IP public của VPS
 
