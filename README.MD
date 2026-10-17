@@ -122,21 +122,17 @@ docker compose up -d --build
 
 Vào repository trên GitHub: **Settings → Secrets and variables → Actions → New repository secret**.
 
-Workflow `.github/workflows/deploy.yml` giữ nguyên: runner `ubuntu-latest` dùng Drone SSH (`entrypoint.sh`) để vào VPS, rồi `git pull` và `docker compose up`.
+Workflow `.github/workflows/deploy.yml` đọc đúng năm secret dưới đây. Tên secret phải khớp từng chữ với file workflow.
 
-| Thông số | Giá trị |
-| --- | --- |
-| IP máy ảo (`enp2s0`) | `192.168.1.5` |
-| SSH trong mạng nhà | `admin@192.168.1.5` |
-| IP public của router, secret `VPS_HOST` | `171.225.184.133` |
-| Secret `VPS_PORT` | `22` |
-| Secret `VPS_USER` | `admin` |
-| Secret `VPS_SSH_KEY` | Private key SSH của user `admin` (cả khối, kể cả `BEGIN` và `END`). Public key nằm trong `~/.ssh/authorized_keys` của user `admin` |
-| Secret `DEPLOY_PATH` | `/home/admin/Documents/port/backend/RoleManagement.Api` |
-| Chuyển tiếp trên router | TCP `22` tới `192.168.1.5` cổng `22` |
-| API trong mạng nhà | `http://192.168.1.5:8080` |
+| Secret trong `deploy.yml` | Ô trong workflow | Giá trị điền |
+| --- | --- | --- |
+| `VPS_HOST` | `host` | `171.225.184.133` |
+| `VPS_USER` | `username` | `admin` |
+| `VPS_PASSWORD` | `password` | Mật khẩu SSH của user `admin`. Chỉ tạo secret trên GitHub, không ghi mật khẩu vào repository |
+| `VPS_PORT` | `port` | `22` |
+| `DEPLOY_PATH` | `script` (`cd`) | `/home/admin/Documents/port/backend/RoleManagement.Api` |
 
-`192.168.1.5` là địa chỉ của máy ảo. `171.225.184.133` là địa chỉ public của router nhà, không gắn trên card mạng của máy ảo. GitHub Actions SSH tới `171.225.184.133`, router chuyển tiếp vào `192.168.1.5`.
+`VPS_HOST` là IP public của router. Máy ảo nằm ở `192.168.1.5`. Router chuyển tiếp TCP `22` tới `192.168.1.5` cổng `22` thì GitHub mới SSH được. Trong mạng nhà, SSH bằng `admin@192.168.1.5` và API là `http://192.168.1.5:8080`.
 
 ### Lấy IP public của VPS
 
@@ -164,14 +160,15 @@ Máy ảo VMware Fusion đang dùng **Bridged Networking → Autodetect**. Card 
 
 ### Lỗi `dial tcp: i/o timeout` ở `Run entrypoint.sh`
 
-Log dừng ở `Drone SSH version 1.8.1` và `dial tcp ***:***: i/o timeout` nghĩa là runner GitHub chưa bắt tay TCP được với `171.225.184.133:22`. Bước này chạy trước Docker. Key SSH chưa được dùng.
+Log dừng ở `Drone SSH version 1.8.1` và `dial tcp ***:***: i/o timeout` nghĩa là runner GitHub chưa bắt tay TCP được với `171.225.184.133:22`. Bước này chạy trước Docker, nên chưa tới bước kiểm tra mật khẩu.
 
-Trên máy ảo, mở SSH:
+Workflow đăng nhập bằng mật khẩu trong secret `VPS_PASSWORD`. Trên máy ảo, bật đăng nhập bằng mật khẩu rồi mở SSH:
 
 ```bash
+sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
 sudo firewall-cmd --permanent --add-service=ssh
 sudo firewall-cmd --reload
-sudo systemctl enable --now sshd
+sudo systemctl restart sshd
 ss -lnt | grep 22
 ```
 
@@ -181,7 +178,7 @@ ss -lnt | grep 22
 ssh admin@192.168.1.5
 ```
 
-Trên router nhà, chuyển tiếp TCP cổng `22` tới `192.168.1.5` cổng `22`. Không điền IP của Mac. Secret GitHub giữ `VPS_HOST` = `171.225.184.133` và `VPS_PORT` = `22`.
+Trên router nhà, chuyển tiếp TCP cổng `22` tới `192.168.1.5` cổng `22`. Không điền IP của Mac. Secret GitHub giữ `VPS_HOST` = `171.225.184.133`, `VPS_PORT` = `22`, `VPS_USER` = `admin`, và `VPS_PASSWORD` là mật khẩu SSH của user `admin`.
 
 Tắt Wi-Fi, dùng mạng di động, rồi kiểm tra trước khi chạy lại Actions:
 
