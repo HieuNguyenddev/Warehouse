@@ -160,12 +160,13 @@ Máy ảo VMware Fusion đang dùng **Bridged Networking → Autodetect**. Card 
 
 ### Lỗi `dial tcp: i/o timeout` ở `Run entrypoint.sh`
 
-Log dừng ở `Drone SSH version 1.8.1` và `dial tcp ***:***: i/o timeout` nghĩa là runner GitHub chưa bắt tay TCP được với `171.225.184.133:22`. Bước này chạy trước Docker, nên chưa tới bước kiểm tra mật khẩu.
+Máy ảo là CentOS Stream 10. Dòng `Will download drone-ssh-1.8.1-linux-amd64` và `runs-on: ubuntu-latest` trong `deploy.yml` là runner của GitHub, không phải hệ điều hành của máy ảo. Log dừng ở `dial tcp ***:***: i/o timeout` sau khoảng 30 giây nghĩa là runner chưa mở được TCP tới `171.225.184.133:22`. CentOS chưa nhận kết nối, nên `firewalld`, mật khẩu và `docker compose` chưa được chạy. Không đổi `deploy.yml` sang CentOS.
 
-Workflow đăng nhập bằng mật khẩu trong secret `VPS_PASSWORD`. Trên máy ảo, bật đăng nhập bằng mật khẩu rồi mở SSH:
+Trên CentOS Stream 10, file trong `/etc/ssh/sshd_config.d/` ghi đè `sshd_config`. Bật đăng nhập bằng mật khẩu ở cả hai nơi, rồi mở SSH trong `firewalld`:
 
 ```bash
 sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+sudo sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config.d/*.conf
 sudo firewall-cmd --permanent --add-service=ssh
 sudo firewall-cmd --reload
 sudo systemctl restart sshd
