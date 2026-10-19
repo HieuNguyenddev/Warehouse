@@ -2,114 +2,199 @@
 
 API ASP.NET Core (.NET 10) và SQL Server, chạy bằng Docker Compose trong `backend/RoleManagement.Api`.
 
-## 1. Chuẩn bị VPS
+Máy chủ là **Ubuntu 24.04** trên VMware Fusion, card mạng **Bridged Networking → Autodetect**. Các lệnh dưới đây chạy bằng user `root`.
 
-SSH vào VPS, rồi cài Git và Docker. Đăng xuất rồi SSH lại để nhóm `docker` có hiệu lực.
+| Thông số | Giá trị |
+| --- | --- |
+| IP máy ảo | `192.168.1.5` |
+| SSH trong mạng nhà | `root@192.168.1.5` |
+| IP public của router | `171.225.184.133` |
+| Thư mục project | `/root/Documents/port` |
+| API trong mạng nhà | `http://192.168.1.5:8080` |
 
-### Ubuntu / Debian
+## 1. Kiểm tra Ubuntu 24.04
+
+Đăng nhập máy ảo bằng `root`, rồi xác nhận phiên bản. `VERSION_ID` phải là `24.04` và `VERSION_CODENAME` là `noble`.
+
+```bash
+ssh root@192.168.1.5
+. /etc/os-release
+echo "$NAME $VERSION_ID $VERSION_CODENAME"
+uname -m
+```
+
+- `ssh root@192.168.1.5` mở phiên làm việc từ máy khác vào user `root` trên máy ảo. Mọi lệnh sau đó chạy trên Ubuntu, không chạy trên máy đang gõ.
+- `. /etc/os-release` đọc file mô tả hệ điều hành vào shell hiện tại. Dấu chấm là lệnh `source`. File này khai báo `NAME`, `VERSION_ID`, `VERSION_CODENAME`.
+- `echo "$NAME $VERSION_ID $VERSION_CODENAME"` in ba biến vừa nạp, ví dụ `Ubuntu 24.04 noble`. Dùng để chắc máy đúng bản 24.04 trước khi thêm kho Docker `noble`.
+- `uname -m` in kiến trúc CPU. `aarch64` là ARM64, `x86_64` là AMD64. Compose dùng `azure-sql-edge` vì image này có cả hai bản. `mssql/server:2022-latest` chỉ có amd64.
+
+Ubuntu 24.04 khóa SSH của `root`. Đặt mật khẩu root một lần, rồi chỉ cho phép đăng nhập root bằng SSH key:
+
+```bash
+sudo passwd root
+printf '%s\n' 'PermitRootLogin prohibit-password' | sudo tee /etc/ssh/sshd_config.d/10-permit-root.conf
+sudo systemctl restart ssh
+```
+
+- `sudo passwd root` đặt hoặc đổi mật khẩu tài khoản `root`. `sudo` chạy lệnh với quyền quản trị. Lệnh này hỏi mật khẩu mới hai lần. GitHub Actions không dùng mật khẩu này. Mật khẩu chỉ để vào máy khi chưa có key.
+- `printf '%s\n' 'PermitRootLogin prohibit-password'` in đúng một dòng cấu hình, có ký tự xuống dòng ở cuối. `prohibit-password` cho `root` đăng nhập bằng SSH key và chặn đăng nhập root bằng mật khẩu.
+- `| sudo tee /etc/ssh/sshd_config.d/10-permit-root.conf` chuyển dòng vừa in vào file. `tee` vừa ghi file vừa cần `sudo` vì thư mục cấu hình SSH thuộc root. Ubuntu 24.04 đọc mọi file `*.conf` trong `sshd_config.d` và file này ghi đè cấu hình mặc định.
+- `sudo systemctl restart ssh` khởi động lại dịch vụ SSH để áp dụng file vừa ghi. Kết nối SSH hiện tại có thể bị ngắt. `systemctl` là trình quản lý dịch vụ của systemd.
+
+Cập nhật gói và cài công cụ cơ bản:
 
 ```bash
 sudo apt update
-sudo apt install -y git ca-certificates curl
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker $USER
+sudo apt upgrade -y
+sudo apt install -y ca-certificates curl gnupg git openssh-server
+sudo systemctl enable --now ssh
 ```
 
-### CentOS Stream 10
+- `sudo apt update` tải danh sách gói mới nhất từ các kho apt. Lệnh này chưa cài hay nâng cấp phần mềm.
+- `sudo apt upgrade -y` nâng các gói đã cài lên bản trong danh sách vừa tải. `-y` tự trả lời có, không dừng để hỏi.
+- `sudo apt install -y ...` cài các gói còn thiếu. `ca-certificates` là bộ chứng chỉ HTTPS để `curl` và Docker tin cậy máy chủ. `curl` tải file qua HTTP. `gnupg` kiểm tra chữ ký gói. `git` lấy mã nguồn. `openssh-server` là dịch vụ SSH để GitHub Actions kết nối vào máy.
+- `sudo systemctl enable --now ssh` bật dịch vụ SSH ngay (`--now`) và ghi dịch vụ tự chạy mỗi lần khởi động (`enable`).
+
+## 2. Cài Docker Engine
+
+Cài theo kho chính thức của Docker cho Ubuntu. Gỡ gói Docker cũ của Ubuntu trước, vì `docker.io` và `containerd` trong Ubuntu tranh file với `docker-ce`.
 
 ```bash
-sudo dnf install -y git ca-certificates curl dnf-plugins-core
-sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+for pkg in docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do sudo apt-get remove -y "$pkg" || true; done
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 sudo systemctl enable --now docker
-sudo usermod -aG docker $USER
 ```
 
-Nếu `dnf install docker-ce` báo gói trùng với Podman, gỡ bản Docker giả lập của Podman rồi cài lại:
+- `for pkg in docker.io ...; do sudo apt-get remove -y "$pkg" || true; done` gỡ từng gói Docker có sẵn trong Ubuntu. `|| true` giữ cho vòng lặp chạy tiếp khi máy chưa cài gói đó. `docker.io` là bản Docker của Ubuntu. `docker-compose` và `docker-compose-v2` là lệnh Compose cũ. `podman-docker` giả lập lệnh `docker` bằng Podman. `containerd` và `runc` là runtime đi kèm bản cũ.
+- `sudo install -m 0755 -d /etc/apt/keyrings` tạo thư mục chứa khóa kho apt. `-d` chỉ tạo thư mục. `-m 0755` đặt quyền đọc và vào thư mục cho mọi user, chỉ root được sửa.
+- `sudo curl -fsSL ... -o /etc/apt/keyrings/docker.asc` tải khóa công khai của Docker và ghi vào file. `-f` báo lỗi nếu HTTP thất bại, `-sS` bớt thanh tiến trình nhưng vẫn in lỗi, `-L` đi theo chuyển hướng.
+- `sudo chmod a+r /etc/apt/keyrings/docker.asc` cho mọi user quyền đọc khóa. `apt` chạy bằng user hạn chế vẫn cần đọc được file này.
+- `echo "deb ..." | sudo tee ... > /dev/null` ghi một dòng kho phần mềm. `dpkg --print-architecture` điền `amd64` hoặc `arm64` đúng với máy. `signed-by` buộc apt chỉ tin gói được khóa Docker ký. `UBUNTU_CODENAME` trên Ubuntu 24.04 là `noble`. `stable` là kênh ổn định. `tee` ghi file với quyền root. `> /dev/null` bỏ bản sao in ra màn hình.
+- `sudo apt-get update` đọc kho vừa thêm để biết các gói Docker.
+- `sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin` cài Docker Engine (`docker-ce`), lệnh `docker` (`docker-ce-cli`), runtime container (`containerd.io`), công cụ build image (`docker-buildx-plugin`) và lệnh `docker compose` (`docker-compose-plugin`).
+- `sudo systemctl enable --now docker` chạy Docker ngay và cho Docker tự chạy khi máy bật.
+
+`root` dùng Docker trực tiếp, không cần thêm vào nhóm `docker`. Kiểm tra bản đã cài:
 
 ```bash
-sudo dnf remove -y podman-docker
-sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+docker version
+docker compose version
+sudo docker run --rm hello-world
 ```
 
-CentOS bật `firewalld` sẵn. Mở cổng API và SQL Server:
+- `docker version` in bản client và server. Server có thông tin nghĩa là dịch vụ Docker đang chạy.
+- `docker compose version` in bản plugin Compose. Project dùng lệnh `docker compose`, không dùng lệnh cũ `docker-compose`.
+- `sudo docker run --rm hello-world` tải image thử của Docker, chạy một container rồi xóa container đó (`--rm`). Dòng `Hello from Docker!` nghĩa là engine kéo image và chạy container được.
 
-```bash
-sudo firewall-cmd --permanent --add-port=8080/tcp
-sudo firewall-cmd --permanent --add-port=1433/tcp
-sudo firewall-cmd --reload
-```
-
-### DNS của máy
-
-`docker pull` dùng DNS trong `/etc/resolv.conf` của máy. Máy ảo đang Bridged, card `enp2s0` là `192.168.1.5`. Nếu pull báo `no such host`, đổi DNS của card đang dùng sang DNS công cộng và bỏ DNS do DHCP đẩy xuống:
+Nếu `docker pull` báo `no such host`, đổi DNS của card đang dùng rồi tải image SQL:
 
 ```bash
 CONN=$(nmcli -t -f NAME,DEVICE connection show --active | awk -F: '$2 != "" && $2 != "lo" {print $1; exit}')
 sudo nmcli connection modify "$CONN" ipv4.dns "8.8.8.8 1.1.1.1"
 sudo nmcli connection modify "$CONN" ipv4.ignore-auto-dns yes
 sudo nmcli connection up "$CONN"
-```
-
-`/etc/resolv.conf` phải còn `nameserver 8.8.8.8` hoặc `nameserver 1.1.1.1`. Sau đó tải image:
-
-```bash
 getent hosts mcr.microsoft.com
 docker pull mcr.microsoft.com/azure-sql-edge:latest
 ```
 
-`getent` phải in ra địa chỉ IP. Nếu `nslookup mcr.microsoft.com 8.8.8.8` cũng báo `no such host`, máy chưa ra internet. Khi đó cần sửa gateway hoặc NAT trước khi pull.
+- `nmcli -t -f NAME,DEVICE connection show --active` liệt kê kết nối mạng đang bật. `-t` xuất dạng dễ cắt, `-f` chỉ lấy tên kết nối và tên card.
+- `awk -F: '$2 != "" && $2 != "lo" {print $1; exit}'` tách mỗi dòng bằng dấu `:`, bỏ card loopback `lo`, in tên kết nối đầu tiên rồi dừng. Kết quả gán vào biến `CONN`.
+- `sudo nmcli connection modify "$CONN" ipv4.dns "8.8.8.8 1.1.1.1"` đặt DNS của kết nối đó thành Google và Cloudflare.
+- `sudo nmcli connection modify "$CONN" ipv4.ignore-auto-dns yes` bỏ DNS do DHCP của router đẩy xuống, để máy dùng hai DNS vừa đặt.
+- `sudo nmcli connection up "$CONN"` áp dụng lại kết nối. Phiên SSH có thể gián đoạn một nhịp.
+- `getent hosts mcr.microsoft.com` hỏi DNS và in địa chỉ IP của registry Microsoft. Có địa chỉ IP thì tên đã phân giải được.
+- `docker pull mcr.microsoft.com/azure-sql-edge:latest` tải trước image SQL Server dùng trong Compose. Image này chạy được trên ARM64 và AMD64.
 
-## 2. Clone repository về VPS
+## 3. Firewall
 
-Các bước clone và chạy Compose giống nhau trên Ubuntu và CentOS Stream 10. Trên VPS, tài khoản là `admin` (prompt `admin@localhost`). Trong mạng nhà, SSH bằng `admin@192.168.1.5`, rồi clone [testCICD](https://github.com/HieuNguyenddev/testCICD):
+Ubuntu 24.04 dùng `ufw`. Mở SSH, API và SQL Server trước khi bật firewall.
 
 ```bash
-ssh admin@192.168.1.5
+sudo ufw allow OpenSSH
+sudo ufw allow 8080/tcp
+sudo ufw allow 1433/tcp
+sudo ufw --force enable
+sudo ufw status
+ss -lnt | grep 22
+```
+
+- `sudo ufw allow OpenSSH` cho phép gói tới dịch vụ SSH, thường là cổng TCP `22`. Phải mở cổng này trước khi bật firewall, nếu không phiên SSH hiện tại và GitHub Actions đều bị chặn.
+- `sudo ufw allow 8080/tcp` cho phép vào cổng API.
+- `sudo ufw allow 1433/tcp` cho phép vào cổng SQL Server.
+- `sudo ufw --force enable` bật firewall và ghi luật để còn hiệu lực sau khi reboot. `--force` không hỏi xác nhận.
+- `sudo ufw status` in các luật đang hoạt động để đối chiếu ba cổng trên.
+- `ss -lnt` liệt kê cổng TCP đang lắng nghe. `-l` chỉ socket listen, `-n` in số cổng, `-t` chỉ TCP. `| grep 22` lọc dòng cổng 22. Phải thấy `0.0.0.0:22` hoặc `*:22`, nghĩa là SSH nhận kết nối từ mọi card mạng.
+
+## 4. SSH key cho CI/CD
+
+GitHub Actions đăng nhập bằng private key, không dùng mật khẩu. Tạo key trên Ubuntu, không đặt passphrase vì workflow không nhập được passphrase.
+
+```bash
+mkdir -p "$HOME/.ssh"
+chmod 700 "$HOME/.ssh"
+ssh-keygen -t ed25519 -f "$HOME/.ssh/gha_deploy" -N ""
+cat "$HOME/.ssh/gha_deploy.pub" >> "$HOME/.ssh/authorized_keys"
+chmod 600 "$HOME/.ssh/authorized_keys"
+```
+
+- `mkdir -p "$HOME/.ssh"` tạo thư mục khóa SSH của `root`. Với user này, `$HOME` là `/root`. `-p` không báo lỗi nếu thư mục đã có, và tạo luôn thư mục cha nếu thiếu.
+- `chmod 700 "$HOME/.ssh"` chỉ chủ thư mục được vào, đọc và sửa. SSH từ chối dùng thư mục nếu user khác cũng đọc được.
+- `ssh-keygen -t ed25519 -f "$HOME/.ssh/gha_deploy" -N ""` tạo một cặp key. `-t ed25519` chọn thuật toán. `-f` đặt đường dẫn private key. File `.pub` cạnh đó là public key. `-N ""` để passphrase rỗng.
+- `cat "$HOME/.ssh/gha_deploy.pub" >> "$HOME/.ssh/authorized_keys"` nối public key vào danh sách key được phép đăng nhập. `>>` thêm vào cuối file, không xóa key cũ.
+- `chmod 600 "$HOME/.ssh/authorized_keys"` chỉ `root` đọc và sửa file này. SSH bỏ qua file nếu quyền rộng hơn.
+
+Xem private key để dán vào secret `VPS_SSH_KEY`. Không commit file này.
+
+```bash
+cat "$HOME/.ssh/gha_deploy"
+```
+
+- `cat "$HOME/.ssh/gha_deploy"` in toàn bộ private key ra terminal, gồm dòng `BEGIN OPENSSH PRIVATE KEY` và `END OPENSSH PRIVATE KEY`. Secret trên GitHub phải chứa đúng khối này.
+
+Trong mạng nhà, thử key trước khi đưa lên GitHub:
+
+```bash
+ssh -i "$HOME/.ssh/gha_deploy" root@192.168.1.5
+```
+
+- `ssh -i ... root@192.168.1.5` đăng nhập lại chính máy ảo bằng private key vừa tạo. `-i` chỉ định file key. Vào được shell thì public key đã nằm đúng trong `authorized_keys`.
+
+## 5. Clone và chạy ứng dụng
+
+```bash
 mkdir -p "$HOME/Documents/port"
 cd "$HOME/Documents/port"
 git clone https://github.com/HieuNguyenddev/testCICD.git .
 cd backend/RoleManagement.Api
-```
-
-`~/Documents/port` nằm trong thư mục `Documents` của user `admin`. Đường dẫn đầy đủ là `/home/admin/Documents/port`.
-
-Trước khi chạy, đổi mật khẩu `sa` trong `docker-compose.yml` (biến `MSSQL_SA_PASSWORD` và chuỗi `ConnectionStrings__DefaultConnection` phải giống nhau).
-
-Khởi động:
-
-```bash
-docker compose down
 docker compose up -d --build
 ```
 
-Trong mạng nhà, API lắng nghe tại `http://192.168.1.5:8080`. Swagger: `http://192.168.1.5:8080/swagger`.
+- `mkdir -p "$HOME/Documents/port"` tạo `/root/Documents/port`. `-p` tạo cả `Documents` nếu chưa có.
+- `cd "$HOME/Documents/port"` chuyển thư mục làm việc hiện tại vào đó. Các lệnh tiếp theo đọc và ghi file tại đây.
+- `git clone https://github.com/HieuNguyenddev/testCICD.git .` tải repository về thư mục hiện tại. Dấu `.` ở cuối nghĩa là bỏ nội dung vào thư mục đang đứng, không tạo thêm thư mục `testCICD`.
+- `cd backend/RoleManagement.Api` vào thư mục có `Dockerfile` và `docker-compose.yml`.
+- `docker compose up -d --build` build image API rồi tạo và chạy các container. `-d` chạy nền, terminal được trả lại. `--build` build lại image khi Dockerfile hoặc mã nguồn đổi. Compose cũng kéo `azure-sql-edge` và chỉ cho API chạy sau khi SQL Server healthy.
 
-### Lỗi `dependency sqlserver` khi chạy Compose
+Đường dẫn đầy đủ là `/root/Documents/port`. Compose mở API ở cổng `8080` và SQL Server ở cổng `1433`. Database tên `RoleManagementDb`.
 
-Lỗi này nghĩa là container `sqlserver` thoát hoặc không đạt healthy, nên `api` không khởi động. Xem nguyên nhân thật trong log:
-
-```bash
-docker compose ps -a
-docker compose logs sqlserver --tail 50
-```
-
-Các nguyên nhân thường gặp:
-
-- **VPS chạy ARM64:** `docker compose up` báo `The requested image's platform (linux/amd64) does not match the detected host platform (linux/arm64)` và container thoát với mã 255. Kiểm tra bằng `uname -m` (`aarch64` là ARM64). Image `mssql/server` không có bản ARM64, nên `docker-compose.yml` dùng `mcr.microsoft.com/azure-sql-edge`, chạy được trên cả amd64 và arm64.
-- **Thiếu RAM:** log có `sqlservr: This program requires a machine with at least 2000 megabytes of memory`. SQL Server cần tối thiểu 2 GB RAM. Kiểm tra bằng `free -m`, tăng RAM của VM lên từ 2 GB (nên 4 GB).
-- **Mật khẩu `sa` không đủ mạnh:** log có `Password validation failed`. Mật khẩu cần tối thiểu 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.
-- **SELinux trên CentOS chặn volume:** log có `Permission denied` ở `/var/opt/mssql`. Chạy `sudo ausearch -m avc -ts recent` để xác nhận.
-- **Image SQL Server:** `docker-compose.yml` dùng `mcr.microsoft.com/azure-sql-edge:latest` vì máy ảo là ARM64. Image `mssql/server:2022-latest` chỉ có bản amd64.
-
-Sau khi sửa, xóa container cũ và chạy lại:
+Kiểm tra container:
 
 ```bash
-docker compose down
-docker compose up -d --build
+docker compose ps
 ```
 
-Cập nhật code sau này:
+- `docker compose ps` liệt kê container của project này, trạng thái và cổng đã map. `api` và `sqlserver` phải `running`. `sqlserver` phải `healthy`.
+
+Nếu `sqlserver` thoát mã 1 và log có `core.sqlservr` cùng `find: '/proc/.../fdinfo': Permission denied`, đó là phần ghi dump sau khi `sqlservr` đã sập. `free -m` phải có tổng RAM từ 2048 MB. Máy 1968 MB là dưới mức SQL Server chấp nhận: tắt máy ảo, trong VMware Fusion tăng Memory lên 4096 MB, rồi bật lại. `docker-compose.yml` đã thêm `SYS_PTRACE` và `seccomp:unconfined` cho Ubuntu 24.04. Sau khi sửa RAM, chạy `docker compose up -d --build`.
+
+Nếu `sqlserver` thoát ngay với mã 255 và log có `platform (linux/amd64) does not match`, máy đang ARM64 và đang kéo nhầm image `mssql/server`. File `docker-compose.yml` phải dùng `mcr.microsoft.com/azure-sql-edge:latest`.
+
+Cập nhật tay khi cần:
 
 ```bash
 cd "$HOME/Documents/port"
@@ -118,94 +203,69 @@ cd backend/RoleManagement.Api
 docker compose up -d --build
 ```
 
-## 3. Thông số cần điền trên GitHub Actions
+- `cd "$HOME/Documents/port"` về thư mục gốc của git.
+- `git pull` tải commit mới từ GitHub và trộn vào bản đang có trên máy.
+- `cd backend/RoleManagement.Api` trở lại thư mục Compose.
+- `docker compose up -d --build` dựng lại image API và khởi động lại container theo file Compose mới.
 
-Vào repository trên GitHub: **Settings → Secrets and variables → Actions → New repository secret**.
+Xem log khi API trả lỗi:
 
-Workflow `.github/workflows/deploy.yml` đọc đúng năm secret dưới đây. Tên secret phải khớp từng chữ với file workflow.
+```bash
+docker compose logs api --tail 50
+docker compose logs sqlserver --tail 50
+```
+
+- `docker compose logs api --tail 50` in 50 dòng log cuối của container API. Dùng khi Postman nhận **500**.
+- `docker compose logs sqlserver --tail 50` in 50 dòng log cuối của SQL Server. Dùng khi container `sqlserver` thoát hoặc không `healthy`.
+
+## 6. Secret GitHub Actions
+
+Vào repository: **Settings → Secrets and variables → Actions → New repository secret**.
+
+Workflow `.github/workflows/deploy.yml` chạy trên runner `ubuntu-latest` của GitHub, SSH vào Ubuntu 24.04 bằng key, rồi `git pull` và `docker compose up -d --build`. Tên secret phải khớp từng chữ với file workflow.
 
 | Secret trong `deploy.yml` | Ô trong workflow | Giá trị điền |
 | --- | --- | --- |
 | `VPS_HOST` | `host` | `171.225.184.133` |
-| `VPS_USER` | `username` | `admin` |
-| `VPS_PASSWORD` | `password` | Mật khẩu SSH của user `admin`. Chỉ tạo secret trên GitHub, không ghi mật khẩu vào repository |
+| `VPS_USER` | `username` | `root` |
+| `VPS_SSH_KEY` | `key` | Nội dung file `/root/.ssh/gha_deploy` |
 | `VPS_PORT` | `port` | `22` |
-| `DEPLOY_PATH` | `script` (`cd`) | `/home/admin/Documents/port/backend/RoleManagement.Api` |
+| `DEPLOY_PATH` | `script` (`cd`) | `/root/Documents/port/backend/RoleManagement.Api` |
 
-`VPS_HOST` là IP public của router. Máy ảo nằm ở `192.168.1.5`. Router chuyển tiếp TCP `22` tới `192.168.1.5` cổng `22` thì GitHub mới SSH được. Trong mạng nhà, SSH bằng `admin@192.168.1.5` và API là `http://192.168.1.5:8080`.
-
-### Lấy IP public của VPS
-
-SSH vào VPS rồi chạy:
+`171.225.184.133` là IP public của router nhà. Lấy lại trên Ubuntu bằng:
 
 ```bash
 curl -4 ifconfig.me
-```
-
-Dòng in ra là IPv4 public. Trên VPS này lệnh trả về `171.225.184.133`. Điền đúng giá trị đó vào secret `VPS_HOST`.
-
-Nếu `curl` không phân giải được tên miền:
-
-```bash
-dig +short myip.opendns.com @resolver1.opendns.com
-```
-
-Xem địa chỉ gắn trên card mạng:
-
-```bash
 ip -4 addr
 ```
 
-Máy ảo VMware Fusion đang dùng **Bridged Networking → Autodetect**. Card `enp2s0` là `192.168.1.5/24`. `171.225.184.133` là IP public của router nhà.
+- `curl -4 ifconfig.me` hỏi một dịch vụ bên ngoài xem địa chỉ IPv4 nào đang đi ra internet. `-4` buộc dùng IPv4. Kết quả là IP public của router, điền vào `VPS_HOST`.
+- `ip -4 addr` liệt kê địa chỉ IPv4 gắn trên từng card của máy ảo. Card `enp2s0` là `192.168.1.5`. Router phải chuyển tiếp TCP cổng `22` tới địa chỉ này, cổng `22`.
 
-### Lỗi `dial tcp: i/o timeout` ở `Run entrypoint.sh`
-
-Máy ảo là CentOS Stream 10. Dòng `Will download drone-ssh-1.8.1-linux-amd64` và `runs-on: ubuntu-latest` trong `deploy.yml` là runner của GitHub, không phải hệ điều hành của máy ảo. Log dừng ở `dial tcp ***:***: i/o timeout` sau khoảng 30 giây nghĩa là runner chưa mở được TCP tới `171.225.184.133:22`. CentOS chưa nhận kết nối, nên `firewalld`, mật khẩu và `docker compose` chưa được chạy. Không đổi `deploy.yml` sang CentOS.
-
-Trên CentOS Stream 10, file trong `/etc/ssh/sshd_config.d/` ghi đè `sshd_config`. Bật đăng nhập bằng mật khẩu ở cả hai nơi, rồi mở SSH trong `firewalld`:
+Dòng `Will download drone-ssh-1.8.1-linux-amd64` chạy trên runner GitHub, không phải trên máy ảo. Log `dial tcp ***:***: i/o timeout` nghĩa là runner chưa mở được TCP tới `VPS_HOST`:`VPS_PORT`. Key chưa được kiểm tra. Từ mạng di động, lệnh sau phải vào được shell rồi mới chạy lại Actions:
 
 ```bash
-sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
-sudo sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config.d/*.conf
-sudo firewall-cmd --permanent --add-service=ssh
-sudo firewall-cmd --reload
-sudo systemctl restart sshd
-ss -lnt | grep 22
+ssh -p 22 -i ~/.ssh/gha_deploy root@171.225.184.133
 ```
 
-`ss` phải thấy `0.0.0.0:22` hoặc `*:22`. Trong mạng nhà, lệnh sau phải vào được shell:
+- `ssh -p 22 -i ~/.ssh/gha_deploy root@171.225.184.133` thử đúng đường GitHub Actions sẽ đi: cổng `22`, private key CI, user `root`, IP public. `-p` chọn cổng. Phải chạy lệnh này từ mạng di động, không chạy từ Wi-Fi cùng nhà, vì nhiều router không cho máy trong LAN đi vòng ra IP public của chính router.
 
-```bash
-ssh admin@192.168.1.5
-```
+`timed out` nghĩa là router hoặc nhà mạng chưa mở cổng vào. `Connection refused` nghĩa là gói đã tới nhưng cổng 22 không có dịch vụ lắng nghe.
 
-Trên router nhà, chuyển tiếp TCP cổng `22` tới `192.168.1.5` cổng `22`. Không điền IP của Mac. Secret GitHub giữ `VPS_HOST` = `171.225.184.133`, `VPS_PORT` = `22`, `VPS_USER` = `admin`, và `VPS_PASSWORD` là mật khẩu SSH của user `admin`.
+## 7. Test bằng Postman
 
-Tắt Wi-Fi, dùng mạng di động, rồi kiểm tra trước khi chạy lại Actions:
+Trong mạng nhà, base URL là `http://192.168.1.5:8080`. Gọi ngay trên máy ảo thì dùng `http://localhost:8080`. Mỗi request có body chọn tab **Body → raw → JSON**.
 
-```bash
-ssh -p 22 admin@171.225.184.133
-nc -vz -w 5 171.225.184.133 22
-```
+| Thao tác | Request | Kết quả đúng |
+| --- | --- | --- |
+| Tạo vai trò | `POST /api/roles` | **201 Created** |
+| Tạo trùng tên | `POST /api/roles` | **409 Conflict** |
+| Danh sách | `GET /api/roles` | **200 OK** |
+| Một vai trò | `GET /api/roles/1` | **200 OK**, id không có thì **404** |
+| Sửa | `PUT /api/roles/1` | **200 OK** |
+| Xóa | `DELETE /api/roles/1` | **204 No Content** |
 
-`timed out` nghĩa là router hoặc nhà mạng chưa mở cổng vào. `Connection refused` nghĩa là gói đã tới nhưng không có dịch vụ cổng 22. Một số nhà mạng dùng CGNAT, khi đó `171.225.184.133` không nhận kết nối từ internet.
-
-## 4. Test bằng Postman sau khi deploy
-
-Trên VPS, cả hai container phải đang chạy:
-
-```bash
-cd "$HOME/Documents/port/backend/RoleManagement.Api"
-docker compose ps
-```
-
-`api` và `sqlserver` đều ở trạng thái `running` (sqlserver là `healthy`). Base URL khi gọi từ máy khác trong cùng mạng là `http://192.168.1.5:8080`. Gọi ngay trên VPS thì dùng `http://localhost:8080`.
-
-Trong Postman, mỗi request bên dưới chọn tab **Body → raw → JSON**.
-
-### Tạo vai trò
-
-`POST http://192.168.1.5:8080/api/roles`
+Body tạo vai trò:
 
 ```json
 {
@@ -214,23 +274,7 @@ Trong Postman, mỗi request bên dưới chọn tab **Body → raw → JSON**.
 }
 ```
 
-Kết quả đúng là **201 Created**. Phần body có `id`, `name`, `description` và `createdAt`. Gọi lại đúng body trên lần thứ hai trả **409 Conflict** vì tên vai trò đã tồn tại.
-
-### Xem danh sách
-
-`GET http://192.168.1.5:8080/api/roles`
-
-Kết quả đúng là **200 OK**, body là mảng các vai trò vừa tạo.
-
-### Xem một vai trò
-
-`GET http://192.168.1.5:8080/api/roles/1`
-
-Thay `1` bằng `id` trả về ở bước tạo. Kết quả đúng là **200 OK**. Id không có trong database trả **404 Not Found**.
-
-### Sửa vai trò
-
-`PUT http://192.168.1.5:8080/api/roles/1`
+Body sửa vai trò:
 
 ```json
 {
@@ -239,12 +283,4 @@ Thay `1` bằng `id` trả về ở bước tạo. Kết quả đúng là **200 
 }
 ```
 
-Kết quả đúng là **200 OK**, `name` trong body là `Administrator`.
-
-### Xóa vai trò
-
-`DELETE http://192.168.1.5:8080/api/roles/1`
-
-Kết quả đúng là **204 No Content**, body rỗng. Gọi lại `GET /api/roles/1` sau đó trả **404 Not Found**.
-
-Swagger cũng mở tại `http://192.168.1.5:8080/swagger` vì Compose đặt `ASPNETCORE_ENVIRONMENT=Development`. Nếu POST trả **500**, xem log API bằng `docker compose logs api --tail 50`.
+Sau khi xóa, `GET /api/roles/1` trả **404 Not Found**. Nếu POST trả **500**, xem log bằng `docker compose logs api --tail 50`.

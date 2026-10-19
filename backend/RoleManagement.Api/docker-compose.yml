@@ -16,6 +16,11 @@ services:
     # azure-sql-edge chạy được trên cả amd64 và arm64.
     # mssql/server:2022-latest chỉ có bản amd64, sẽ lỗi trên VPS arm64 (aarch64).
     image: mcr.microsoft.com/azure-sql-edge:latest
+    # Ubuntu 24.04 chặn ptrace/seccomp khiến sqlservr tạo core dump rồi thoát mã 1.
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "123456Aa@"
