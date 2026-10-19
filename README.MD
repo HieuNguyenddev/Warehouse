@@ -1,6 +1,6 @@
 # Role Management API
 
-API ASP.NET Core (.NET 10) và SQLite, chạy bằng một container trong `backend/RoleManagement.Api`. SQLite nằm trong tiến trình API, không cần container SQL Server. Máy 2 GB không chạy được SQL Server cho Linux vì tiến trình đó cần khoảng 2 GB chỉ để khởi động.
+API ASP.NET Core (.NET 10) và PostgreSQL 16, chạy bằng Docker Compose trong `backend/RoleManagement.Api`. PostgreSQL phù hợp máy 2 GB: image `postgres:16-alpine` khởi động với vài chục MB RAM, không có mức sàn 2 GB như SQL Server.
 
 Máy chủ là **Ubuntu 24.04** trên VMware Fusion, card mạng **Bridged Networking → Autodetect**. Các lệnh dưới đây chạy bằng user `root`.
 
@@ -12,7 +12,7 @@ Máy chủ là **Ubuntu 24.04** trên VMware Fusion, card mạng **Bridged Netwo
 | Thư mục project | `/root/Documents/port` |
 | API trong mạng nhà | `http://192.168.1.5:8080` |
 | .NET | 10, image `aspnet:10.0`. Tiến trình API bị giới hạn khoảng 256 MB |
-| RAM VPS | 2 GB. Chỉ container API, trần 768 MB. File database là `/data/rolemanagement.db` |
+| RAM VPS | 2 GB. API trần 512 MB, PostgreSQL trần 512 MB, `shared_buffers` 128 MB |
 
 ## 1. Kiểm tra Ubuntu 24.04
 
@@ -117,6 +117,7 @@ Ubuntu 24.04 dùng `ufw`. Mở SSH và API trước khi bật firewall.
 ```bash
 sudo ufw allow OpenSSH
 sudo ufw allow 8080/tcp
+sudo ufw allow 5432/tcp
 sudo ufw --force enable
 sudo ufw status
 ss -lnt | grep 22
@@ -124,6 +125,7 @@ ss -lnt | grep 22
 
 - `sudo ufw allow OpenSSH` cho phép gói tới dịch vụ SSH, thường là cổng TCP `22`. Phải mở cổng này trước khi bật firewall, nếu không phiên SSH hiện tại và GitHub Actions đều bị chặn.
 - `sudo ufw allow 8080/tcp` cho phép vào cổng API.
+- `sudo ufw allow 5432/tcp` cho phép DBeaver trên mạng nhà vào PostgreSQL. Không chuyển tiếp cổng `5432` trên router ra internet.
 - `sudo ufw --force enable` bật firewall và ghi luật để còn hiệu lực sau khi reboot. `--force` không hỏi xác nhận.
 - `sudo ufw status` in các luật đang hoạt động để đối chiếu ba cổng trên.
 - `ss -lnt` liệt kê cổng TCP đang lắng nghe. `-l` chỉ socket listen, `-n` in số cổng, `-t` chỉ TCP. `| grep 22` lọc dòng cổng 22. Phải thấy `0.0.0.0:22` hoặc `*:22`, nghĩa là SSH nhận kết nối từ mọi card mạng.
@@ -176,9 +178,9 @@ docker compose up -d --build
 - `cd "$HOME/Documents/port"` chuyển thư mục làm việc hiện tại vào đó. Các lệnh tiếp theo đọc và ghi file tại đây.
 - `git clone https://github.com/HieuNguyenddev/testCICD.git .` tải repository về thư mục hiện tại. Dấu `.` ở cuối nghĩa là bỏ nội dung vào thư mục đang đứng, không tạo thêm thư mục `testCICD`.
 - `cd backend/RoleManagement.Api` vào thư mục có `Dockerfile` và `docker-compose.yml`.
-- `docker compose up -d --build` build image API rồi chạy một container. `-d` chạy nền, terminal được trả lại. `--build` build lại image khi Dockerfile hoặc mã nguồn đổi. API tự tạo file SQLite lúc khởi động.
+- `docker compose up -d --build` build image API rồi chạy API và PostgreSQL. `-d` chạy nền, terminal được trả lại. `--build` build lại image khi Dockerfile hoặc mã nguồn đổi. API chỉ chạy sau khi PostgreSQL healthy, rồi tự tạo bảng.
 
-Đường dẫn đầy đủ là `/root/Documents/port`. API lắng nghe cổng `8080`. File database nằm trong volume Docker, đường dẫn trong container là `/data/rolemanagement.db`.
+Đường dẫn đầy đủ là `/root/Documents/port`. API lắng nghe cổng `8080`. PostgreSQL lắng nghe cổng `5432`, database tên `RoleManagementDb`.
 
 Kiểm tra container:
 
@@ -186,9 +188,9 @@ Kiểm tra container:
 docker compose ps
 ```
 
-- `docker compose ps` liệt kê container của project này. Chỉ có `api`, trạng thái phải là `running`. Database SQLite được tạo lúc API khởi động.
+- `docker compose ps` liệt kê container của project này. `api` và `postgres` phải `running`. `postgres` phải `healthy`.
 
-Nếu log còn `dependency sqlserver`, máy đang chạy bản Compose cũ còn container SQL Server. Bản hiện tại chỉ có service `api` và SQLite. Xóa container SQL cũ rồi chạy lại:
+Nếu log còn `dependency sqlserver` hoặc container SQLite cũ, xóa stack cũ rồi chạy bản PostgreSQL:
 
 ```bash
 cd /root/Documents/port
@@ -199,7 +201,7 @@ docker compose up -d --build
 docker compose ps
 ```
 
-`docker compose ps` chỉ còn container `api` ở trạng thái `running`. Không còn `sqlserver`.
+`docker compose ps` phải hiện `api` là `running` và `postgres` là `healthy`.
 
 Cập nhật tay khi cần:
 
@@ -289,3 +291,24 @@ Body sửa vai trò:
 ```
 
 Sau khi xóa, `GET /api/roles/1` trả **404 Not Found**. Nếu POST trả **500**, xem log bằng `docker compose logs api --tail 50`.
+
+## 8. Mở database bằng DBeaver
+
+PostgreSQL nhận kết nối mạng. DBeaver trên Mac nối thẳng tới máy ảo, không copy file.
+
+1. **Database → New Database Connection**.
+2. Chọn **PostgreSQL**, bấm **Next**.
+3. Điền:
+
+| Ô | Giá trị |
+| --- | --- |
+| Host | `192.168.1.5` |
+| Port | `5432` |
+| Database | `RoleManagementDb` |
+| Username | `postgres` |
+| Password | `123456Aa@` |
+
+4. Bấm **Test Connection**. Lần đầu DBeaver hỏi tải driver PostgreSQL, chọn **Download**.
+5. Thông báo **Connected** thì bấm **Finish**.
+
+Bảng dữ liệu tên `Roles`. Mở **RoleManagementDb → Schemas → public → Tables → Roles → View Data**. Gọi API thêm vai trò xong, bấm làm mới bảng để thấy dòng mới.
