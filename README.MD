@@ -1,6 +1,6 @@
 # Role Management API
 
-API ASP.NET Core (.NET 10) và SQL Server, chạy bằng Docker Compose trong `backend/RoleManagement.Api`.
+API ASP.NET Core (.NET 10) và SQLite, chạy bằng một container trong `backend/RoleManagement.Api`. SQLite nằm trong tiến trình API, không cần container SQL Server. Máy 2 GB không chạy được SQL Server cho Linux vì tiến trình đó cần khoảng 2 GB chỉ để khởi động.
 
 Máy chủ là **Ubuntu 24.04** trên VMware Fusion, card mạng **Bridged Networking → Autodetect**. Các lệnh dưới đây chạy bằng user `root`.
 
@@ -12,7 +12,7 @@ Máy chủ là **Ubuntu 24.04** trên VMware Fusion, card mạng **Bridged Netwo
 | Thư mục project | `/root/Documents/port` |
 | API trong mạng nhà | `http://192.168.1.5:8080` |
 | .NET | 10, image `aspnet:10.0`. Tiến trình API bị giới hạn khoảng 256 MB |
-| RAM VPS | 2 GB. SQL tối đa 1280 MB, buffer `MSSQL_MEMORY_LIMIT_MB` là 512 MB. Phần còn lại cho Ubuntu và API |
+| RAM VPS | 2 GB. Chỉ container API, trần 768 MB. File database là `/data/rolemanagement.db` |
 
 ## 1. Kiểm tra Ubuntu 24.04
 
@@ -28,7 +28,7 @@ uname -m
 - `ssh root@192.168.1.5` mở phiên làm việc từ máy khác vào user `root` trên máy ảo. Mọi lệnh sau đó chạy trên Ubuntu, không chạy trên máy đang gõ.
 - `. /etc/os-release` đọc file mô tả hệ điều hành vào shell hiện tại. Dấu chấm là lệnh `source`. File này khai báo `NAME`, `VERSION_ID`, `VERSION_CODENAME`.
 - `echo "$NAME $VERSION_ID $VERSION_CODENAME"` in ba biến vừa nạp, ví dụ `Ubuntu 24.04 noble`. Dùng để chắc máy đúng bản 24.04 trước khi thêm kho Docker `noble`.
-- `uname -m` in kiến trúc CPU. `aarch64` là ARM64, `x86_64` là AMD64. Compose dùng `azure-sql-edge` vì image này có cả hai bản. `mssql/server:2022-latest` chỉ có amd64.
+- `uname -m` in kiến trúc CPU. `aarch64` là ARM64, `x86_64` là AMD64. API .NET 10 chạy được trên cả hai.
 
 Ubuntu 24.04 khóa SSH của `root`. Đặt mật khẩu root một lần, rồi chỉ cho phép đăng nhập root bằng SSH key:
 
@@ -93,7 +93,7 @@ sudo docker run --rm hello-world
 - `docker compose version` in bản plugin Compose. Project dùng lệnh `docker compose`, không dùng lệnh cũ `docker-compose`.
 - `sudo docker run --rm hello-world` tải image thử của Docker, chạy một container rồi xóa container đó (`--rm`). Dòng `Hello from Docker!` nghĩa là engine kéo image và chạy container được.
 
-Nếu `docker pull` báo `no such host`, đổi DNS của card đang dùng rồi tải image SQL:
+Nếu `docker pull` báo `no such host`, đổi DNS của card đang dùng:
 
 ```bash
 CONN=$(nmcli -t -f NAME,DEVICE connection show --active | awk -F: '$2 != "" && $2 != "lo" {print $1; exit}')
@@ -101,7 +101,6 @@ sudo nmcli connection modify "$CONN" ipv4.dns "8.8.8.8 1.1.1.1"
 sudo nmcli connection modify "$CONN" ipv4.ignore-auto-dns yes
 sudo nmcli connection up "$CONN"
 getent hosts mcr.microsoft.com
-docker pull mcr.microsoft.com/azure-sql-edge:1.0.6
 ```
 
 - `nmcli -t -f NAME,DEVICE connection show --active` liệt kê kết nối mạng đang bật. `-t` xuất dạng dễ cắt, `-f` chỉ lấy tên kết nối và tên card.
@@ -109,17 +108,15 @@ docker pull mcr.microsoft.com/azure-sql-edge:1.0.6
 - `sudo nmcli connection modify "$CONN" ipv4.dns "8.8.8.8 1.1.1.1"` đặt DNS của kết nối đó thành Google và Cloudflare.
 - `sudo nmcli connection modify "$CONN" ipv4.ignore-auto-dns yes` bỏ DNS do DHCP của router đẩy xuống, để máy dùng hai DNS vừa đặt.
 - `sudo nmcli connection up "$CONN"` áp dụng lại kết nối. Phiên SSH có thể gián đoạn một nhịp.
-- `getent hosts mcr.microsoft.com` hỏi DNS và in địa chỉ IP của registry Microsoft. Có địa chỉ IP thì tên đã phân giải được.
-- `docker pull mcr.microsoft.com/azure-sql-edge:1.0.6` tải image SQL Server bản 1.0.6 dùng trong Compose. Bản này chạy trên ARM64 và AMD64. Biến `MSSQL_MEMORY_LIMIT_MB=512` giới hạn bộ nhớ tiến trình SQL khoảng 512 MB sau khi tiến trình đã khởi động.
+- `getent hosts mcr.microsoft.com` hỏi DNS và in địa chỉ IP của registry Microsoft. Có địa chỉ IP thì tên đã phân giải được. Lệnh này chỉ để kiểm tra DNS khi `docker pull` báo `no such host`.
 
 ## 3. Firewall
 
-Ubuntu 24.04 dùng `ufw`. Mở SSH, API và SQL Server trước khi bật firewall.
+Ubuntu 24.04 dùng `ufw`. Mở SSH và API trước khi bật firewall.
 
 ```bash
 sudo ufw allow OpenSSH
 sudo ufw allow 8080/tcp
-sudo ufw allow 1433/tcp
 sudo ufw --force enable
 sudo ufw status
 ss -lnt | grep 22
@@ -127,7 +124,6 @@ ss -lnt | grep 22
 
 - `sudo ufw allow OpenSSH` cho phép gói tới dịch vụ SSH, thường là cổng TCP `22`. Phải mở cổng này trước khi bật firewall, nếu không phiên SSH hiện tại và GitHub Actions đều bị chặn.
 - `sudo ufw allow 8080/tcp` cho phép vào cổng API.
-- `sudo ufw allow 1433/tcp` cho phép vào cổng SQL Server.
 - `sudo ufw --force enable` bật firewall và ghi luật để còn hiệu lực sau khi reboot. `--force` không hỏi xác nhận.
 - `sudo ufw status` in các luật đang hoạt động để đối chiếu ba cổng trên.
 - `ss -lnt` liệt kê cổng TCP đang lắng nghe. `-l` chỉ socket listen, `-n` in số cổng, `-t` chỉ TCP. `| grep 22` lọc dòng cổng 22. Phải thấy `0.0.0.0:22` hoặc `*:22`, nghĩa là SSH nhận kết nối từ mọi card mạng.
@@ -180,9 +176,9 @@ docker compose up -d --build
 - `cd "$HOME/Documents/port"` chuyển thư mục làm việc hiện tại vào đó. Các lệnh tiếp theo đọc và ghi file tại đây.
 - `git clone https://github.com/HieuNguyenddev/testCICD.git .` tải repository về thư mục hiện tại. Dấu `.` ở cuối nghĩa là bỏ nội dung vào thư mục đang đứng, không tạo thêm thư mục `testCICD`.
 - `cd backend/RoleManagement.Api` vào thư mục có `Dockerfile` và `docker-compose.yml`.
-- `docker compose up -d --build` build image API rồi tạo và chạy các container. `-d` chạy nền, terminal được trả lại. `--build` build lại image khi Dockerfile hoặc mã nguồn đổi. Compose cũng kéo `azure-sql-edge` và chỉ cho API chạy sau khi SQL Server healthy.
+- `docker compose up -d --build` build image API rồi chạy một container. `-d` chạy nền, terminal được trả lại. `--build` build lại image khi Dockerfile hoặc mã nguồn đổi. API tự tạo file SQLite lúc khởi động.
 
-Đường dẫn đầy đủ là `/root/Documents/port`. Compose mở API ở cổng `8080` và SQL Server ở cổng `1433`. Database tên `RoleManagementDb`.
+Đường dẫn đầy đủ là `/root/Documents/port`. API lắng nghe cổng `8080`. File database nằm trong volume Docker, đường dẫn trong container là `/data/rolemanagement.db`.
 
 Kiểm tra container:
 
@@ -190,26 +186,9 @@ Kiểm tra container:
 docker compose ps
 ```
 
-- `docker compose ps` liệt kê container của project này, trạng thái và cổng đã map. `api` và `sqlserver` phải `running`. `sqlserver` phải `healthy`.
+- `docker compose ps` liệt kê container của project này. Chỉ có `api`, trạng thái phải là `running`. Database SQLite được tạo lúc API khởi động.
 
-### Lỗi `dependency sqlserver` sau khoảng 11 giây
-
-Dòng `Container rolemanagementapi-sqlserver-1 Error dependency sqlserver` nghĩa là container SQL đã thoát, nên Compose không khởi động `api`. Image API build xong không liên quan đến lỗi này.
-
-Log đầy `find: '/proc/.../fdinfo': Permission denied`, `dmesg: Operation not permitted` và `core.sqlservr` là chương trình ghi dump chạy sau khi `sqlservr` đã sập. Các dòng đó không phải nguyên nhân.
-
-Trên máy này `free -m` báo tổng RAM **1968 MB**. SQL Server cần ít nhất **2048 MB** và sẽ sập khi máy thấp hơn mức đó. Sửa theo thứ tự:
-
-1. Tắt máy ảo. Trong VMware Fusion mở **Virtual Machine → Settings → Processors & Memory** và đặt Memory là **4096 MB**. Bật máy lại.
-2. Kiểm tra RAM đã tăng:
-
-```bash
-free -m
-```
-
-Dòng `Mem` cột `total` phải từ `2048` trở lên. `free -m` in số megabyte đang có. Cột `total` là RAM máy ảo nhìn thấy.
-
-3. Lấy `docker-compose.yml` đã thêm `cap_add: SYS_PTRACE` và `security_opt: seccomp:unconfined`. Ubuntu 24.04 chặn ptrace nên `sqlservr` tạo core dump nếu thiếu hai mục này.
+Nếu log còn `dependency sqlserver`, máy đang chạy bản Compose cũ còn container SQL Server. Bản hiện tại chỉ có service `api` và SQLite. Xóa container SQL cũ rồi chạy lại:
 
 ```bash
 cd /root/Documents/port
@@ -220,18 +199,7 @@ docker compose up -d --build
 docker compose ps
 ```
 
-- `git pull` tải bản Compose có hai mục quyền ở trên.
-- `docker compose down` xóa container cũ đang thoát mã 1. Volume dữ liệu vẫn giữ.
-- `docker compose up -d --build` tạo lại container.
-- `docker compose ps` phải hiện `sqlserver` là `running` và `healthy`.
-
-Nếu sau khi đủ RAM mà SQL vẫn thoát, xem phần log trước đoạn ghi dump:
-
-```bash
-docker compose logs sqlserver 2>&1 | head -n 40
-```
-
-`head -n 40` lấy 40 dòng đầu, nơi SQL in lý do thoát. `docker compose logs --tail 80` chỉ thấy phần dump ở cuối nên không có nguyên nhân.
+`docker compose ps` chỉ còn container `api` ở trạng thái `running`. Không còn `sqlserver`.
 
 Cập nhật tay khi cần:
 
@@ -251,11 +219,9 @@ Xem log khi API trả lỗi:
 
 ```bash
 docker compose logs api --tail 50
-docker compose logs sqlserver --tail 50
 ```
 
 - `docker compose logs api --tail 50` in 50 dòng log cuối của container API. Dùng khi Postman nhận **500**.
-- `docker compose logs sqlserver --tail 50` in 50 dòng log cuối của SQL Server. Dùng khi container `sqlserver` thoát hoặc không `healthy`.
 
 ## 6. Secret GitHub Actions
 

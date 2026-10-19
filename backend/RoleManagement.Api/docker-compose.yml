@@ -3,41 +3,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    mem_limit: 512m
+    mem_limit: 768m
+    user: "0:0"
     ports:
       - "8080:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=RoleManagementDb;User Id=sa;Password=123456Aa@;Encrypt=True;TrustServerCertificate=True"
-    depends_on:
-      sqlserver:
-        condition: service_healthy
-
-  sqlserver:
-    # azure-sql-edge chạy được trên cả amd64 và arm64.
-    # mssql/server:2022-latest chỉ có bản amd64, sẽ lỗi trên VPS arm64 (aarch64).
-    image: mcr.microsoft.com/azure-sql-edge:1.0.6
-    # Ubuntu 24.04 chặn ptrace/seccomp khiến sqlservr tạo core dump rồi thoát mã 1.
-    cap_add:
-      - SYS_PTRACE
-    security_opt:
-      - seccomp:unconfined
-    mem_limit: 1280m
-    environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "123456Aa@"
-      MSSQL_MEMORY_LIMIT_MB: "512"
-    ports:
-      - "1433:1433"
+      ConnectionStrings__DefaultConnection: "Data Source=/data/rolemanagement.db"
     volumes:
-      - sqlserver-data:/var/opt/mssql
-    healthcheck:
-      # azure-sql-edge không có sqlcmd, nên kiểm tra cổng 1433 đã mở.
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/1433' || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 15
-      start_period: 60s
+      - sqlite-data:/data
 
 volumes:
-  sqlserver-data:
+  sqlite-data:
