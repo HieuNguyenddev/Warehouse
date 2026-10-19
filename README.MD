@@ -11,6 +11,8 @@ Máy chủ là **Ubuntu 24.04** trên VMware Fusion, card mạng **Bridged Netwo
 | IP public của router | `171.225.184.133` |
 | Thư mục project | `/root/Documents/port` |
 | API trong mạng nhà | `http://192.168.1.5:8080` |
+| .NET | 10, image `aspnet:10.0`. Tiến trình API bị giới hạn khoảng 256 MB |
+| RAM VPS | 2 GB. SQL tối đa 1280 MB, buffer `MSSQL_MEMORY_LIMIT_MB` là 512 MB. Phần còn lại cho Ubuntu và API |
 
 ## 1. Kiểm tra Ubuntu 24.04
 
@@ -99,7 +101,7 @@ sudo nmcli connection modify "$CONN" ipv4.dns "8.8.8.8 1.1.1.1"
 sudo nmcli connection modify "$CONN" ipv4.ignore-auto-dns yes
 sudo nmcli connection up "$CONN"
 getent hosts mcr.microsoft.com
-docker pull mcr.microsoft.com/azure-sql-edge:latest
+docker pull mcr.microsoft.com/azure-sql-edge:1.0.6
 ```
 
 - `nmcli -t -f NAME,DEVICE connection show --active` liệt kê kết nối mạng đang bật. `-t` xuất dạng dễ cắt, `-f` chỉ lấy tên kết nối và tên card.
@@ -108,7 +110,7 @@ docker pull mcr.microsoft.com/azure-sql-edge:latest
 - `sudo nmcli connection modify "$CONN" ipv4.ignore-auto-dns yes` bỏ DNS do DHCP của router đẩy xuống, để máy dùng hai DNS vừa đặt.
 - `sudo nmcli connection up "$CONN"` áp dụng lại kết nối. Phiên SSH có thể gián đoạn một nhịp.
 - `getent hosts mcr.microsoft.com` hỏi DNS và in địa chỉ IP của registry Microsoft. Có địa chỉ IP thì tên đã phân giải được.
-- `docker pull mcr.microsoft.com/azure-sql-edge:latest` tải trước image SQL Server dùng trong Compose. Image này chạy được trên ARM64 và AMD64.
+- `docker pull mcr.microsoft.com/azure-sql-edge:1.0.6` tải image SQL Server bản 1.0.6 dùng trong Compose. Bản này chạy trên ARM64 và AMD64. Biến `MSSQL_MEMORY_LIMIT_MB=512` giới hạn bộ nhớ tiến trình SQL khoảng 512 MB sau khi tiến trình đã khởi động.
 
 ## 3. Firewall
 
@@ -190,9 +192,46 @@ docker compose ps
 
 - `docker compose ps` liệt kê container của project này, trạng thái và cổng đã map. `api` và `sqlserver` phải `running`. `sqlserver` phải `healthy`.
 
-Nếu `sqlserver` thoát mã 1 và log có `core.sqlservr` cùng `find: '/proc/.../fdinfo': Permission denied`, đó là phần ghi dump sau khi `sqlservr` đã sập. `free -m` phải có tổng RAM từ 2048 MB. Máy 1968 MB là dưới mức SQL Server chấp nhận: tắt máy ảo, trong VMware Fusion tăng Memory lên 4096 MB, rồi bật lại. `docker-compose.yml` đã thêm `SYS_PTRACE` và `seccomp:unconfined` cho Ubuntu 24.04. Sau khi sửa RAM, chạy `docker compose up -d --build`.
+### Lỗi `dependency sqlserver` sau khoảng 11 giây
 
-Nếu `sqlserver` thoát ngay với mã 255 và log có `platform (linux/amd64) does not match`, máy đang ARM64 và đang kéo nhầm image `mssql/server`. File `docker-compose.yml` phải dùng `mcr.microsoft.com/azure-sql-edge:latest`.
+Dòng `Container rolemanagementapi-sqlserver-1 Error dependency sqlserver` nghĩa là container SQL đã thoát, nên Compose không khởi động `api`. Image API build xong không liên quan đến lỗi này.
+
+Log đầy `find: '/proc/.../fdinfo': Permission denied`, `dmesg: Operation not permitted` và `core.sqlservr` là chương trình ghi dump chạy sau khi `sqlservr` đã sập. Các dòng đó không phải nguyên nhân.
+
+Trên máy này `free -m` báo tổng RAM **1968 MB**. SQL Server cần ít nhất **2048 MB** và sẽ sập khi máy thấp hơn mức đó. Sửa theo thứ tự:
+
+1. Tắt máy ảo. Trong VMware Fusion mở **Virtual Machine → Settings → Processors & Memory** và đặt Memory là **4096 MB**. Bật máy lại.
+2. Kiểm tra RAM đã tăng:
+
+```bash
+free -m
+```
+
+Dòng `Mem` cột `total` phải từ `2048` trở lên. `free -m` in số megabyte đang có. Cột `total` là RAM máy ảo nhìn thấy.
+
+3. Lấy `docker-compose.yml` đã thêm `cap_add: SYS_PTRACE` và `security_opt: seccomp:unconfined`. Ubuntu 24.04 chặn ptrace nên `sqlservr` tạo core dump nếu thiếu hai mục này.
+
+```bash
+cd /root/Documents/port
+git pull
+cd backend/RoleManagement.Api
+docker compose down
+docker compose up -d --build
+docker compose ps
+```
+
+- `git pull` tải bản Compose có hai mục quyền ở trên.
+- `docker compose down` xóa container cũ đang thoát mã 1. Volume dữ liệu vẫn giữ.
+- `docker compose up -d --build` tạo lại container.
+- `docker compose ps` phải hiện `sqlserver` là `running` và `healthy`.
+
+Nếu sau khi đủ RAM mà SQL vẫn thoát, xem phần log trước đoạn ghi dump:
+
+```bash
+docker compose logs sqlserver 2>&1 | head -n 40
+```
+
+`head -n 40` lấy 40 dòng đầu, nơi SQL in lý do thoát. `docker compose logs --tail 80` chỉ thấy phần dump ở cuối nên không có nguyên nhân.
 
 Cập nhật tay khi cần:
 
