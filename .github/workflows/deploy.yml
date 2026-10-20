@@ -26,6 +26,7 @@ jobs:
             test -f "$ROOT/frontend/Dockerfile"
             mkdir -p certbot/www
             docker compose up -d --build
+            docker compose up -d --force-recreate --no-deps nginx
             certbot certonly --webroot --non-interactive --keep-until-expiring --expand \
               --cert-name api.minhhieudev.id.vn \
               -w "$ROOT/backend/RoleManagement.Api/certbot/www" \
