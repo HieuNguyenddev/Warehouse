@@ -1,6 +1,6 @@
 # Role Management API
 
-API ASP.NET Core (.NET 10), PostgreSQL 16 và Nginx reverse proxy, chạy bằng Docker Compose trong `backend/RoleManagement.Api`. Nginx lắng nghe cổng `80` và chuyển request tới API nội bộ cổng `8080`. PostgreSQL phù hợp máy 2 GB: image `postgres:16-alpine` khởi động với vài chục MB RAM, không có mức sàn 2 GB như SQL Server.
+API ASP.NET Core (.NET 10), admin React, PostgreSQL 16 và Nginx, chạy bằng Docker Compose trong `backend/RoleManagement.Api`. Nginx lắng nghe cổng `80`: phục vụ giao diện admin tại `minhhieudev.id.vn`, proxy API tại `api.minhhieudev.id.vn` và đường dẫn `/api` trên trang gốc. PostgreSQL phù hợp máy 2 GB.
 
 Máy chủ là **Ubuntu 24.04** trên VMware Fusion, card mạng **Bridged Networking → Autodetect**. Các lệnh dưới đây chạy bằng user `root`.
 
@@ -12,9 +12,10 @@ Máy chủ là **Ubuntu 24.04** trên VMware Fusion, card mạng **Bridged Netwo
 | Tên miền gốc | `minhhieudev.id.vn` |
 | Tên miền API | `api.minhhieudev.id.vn` |
 | Thư mục project | `/root/Documents/port` |
-| API qua Nginx | `http://192.168.1.5` hoặc `http://api.minhhieudev.id.vn` |
+| Admin (React) | `http://minhhieudev.id.vn` hoặc `http://192.168.1.5` |
+| API thuần | `http://api.minhhieudev.id.vn` |
 | .NET | 10, image `aspnet:10.0`. Tiến trình API bị giới hạn khoảng 256 MB |
-| RAM VPS | 2 GB. API 512 MB, PostgreSQL 512 MB, Nginx 64 MB |
+| RAM VPS | 2 GB. API 512 MB, PostgreSQL 512 MB, Nginx+frontend 96 MB |
 
 ## 1. Kiểm tra Ubuntu 24.04
 
@@ -180,9 +181,9 @@ docker compose up -d --build
 - `cd "$HOME/Documents/port"` chuyển thư mục làm việc hiện tại vào đó. Các lệnh tiếp theo đọc và ghi file tại đây.
 - `git clone https://github.com/HieuNguyenddev/testCICD.git .` tải repository về thư mục hiện tại. Dấu `.` ở cuối nghĩa là bỏ nội dung vào thư mục đang đứng, không tạo thêm thư mục `testCICD`.
 - `cd backend/RoleManagement.Api` vào thư mục có `Dockerfile` và `docker-compose.yml`.
-- `docker compose up -d --build` build image API rồi chạy API, PostgreSQL và Nginx. `-d` chạy nền, terminal được trả lại. `--build` build lại image khi Dockerfile hoặc mã nguồn đổi. API chỉ chạy sau khi PostgreSQL healthy, rồi tự tạo bảng. Nginx đọc `nginx/default.conf` và proxy cổng `80` sang `api:8080`.
+- `docker compose up -d --build` build image API và image Nginx (có build React trong `frontend/`), rồi chạy API, PostgreSQL và Nginx. `-d` chạy nền. `--build` build lại khi mã nguồn đổi. API chỉ chạy sau khi PostgreSQL healthy, rồi tự tạo bảng.
 
-Đường dẫn đầy đủ là `/root/Documents/port`. Nginx lắng nghe cổng `80`. API chỉ lắng nghe trong mạng Docker ở cổng `8080`. PostgreSQL lắng nghe cổng `5432`, database tên `RoleManagementDb`.
+Đường dẫn đầy đủ là `/root/Documents/port`. Nginx lắng nghe cổng `80`. Admin React ở `/`. API nội bộ cổng `8080`. PostgreSQL cổng `5432`, database `RoleManagementDb`.
 
 Kiểm tra container:
 
@@ -380,35 +381,34 @@ docker compose ps
 
 `api`, `nginx` phải `running`. `postgres` phải `healthy`.
 
-Nginx trong Compose đọc file `nginx/default.conf`:
+Nginx trong Compose đọc `nginx/default.conf` và phục vụ bản build React:
 
-- `server_name api.minhhieudev.id.vn` → proxy sang `http://api:8080`
-- `server_name minhhieudev.id.vn` (và mặc định) → cùng proxy sang API
+- `api.minhhieudev.id.vn` → proxy toàn bộ sang `http://api:8080`
+- `minhhieudev.id.vn` → file tĩnh admin; `/api/` proxy sang API
 
-Không cài Nginx bằng `apt` trên host. Container `nginx` đã làm việc đó. Nếu máy đó là VPS thuê sẵn thì không cần port forward router nhà. Nếu chạy trên máy ảo `192.168.1.5` thì forward WAN `22` và `80` tới `192.168.1.5`.
+Không cài Nginx bằng `apt` trên host. Nếu chạy trên máy ảo `192.168.1.5` thì forward WAN `22` và `80` tới máy đó.
 
-### 9.4. Thử API bằng tên miền
+### 9.4. Thử admin và API
 
 Từ mạng ngoài (di động):
 
 ```bash
-curl -i http://api.minhhieudev.id.vn/api/roles
+curl -i http://minhhieudev.id.vn/
 curl -i http://minhhieudev.id.vn/api/roles
-curl -i http://103.183.120.48/api/roles
+curl -i http://api.minhhieudev.id.vn/api/roles
 ```
 
-Postman base URL: `http://api.minhhieudev.id.vn` (không có `:8080`).
+Mở trình duyệt `http://minhhieudev.id.vn` để dùng giao diện admin (tạo / sửa / xóa vai trò). Postman base URL API: `http://api.minhhieudev.id.vn`.
 
-- **200** hoặc `[]`: DNS, Nginx và API khớp.
-- Timeout: firewall chưa mở `80`, hoặc Compose chưa chạy trên đúng máy DNS trỏ tới.
-- Trang/máy lạ: Value của bản ghi A không phải máy đang chạy project này.
-
-Xem log Nginx khi proxy lỗi:
+Chạy admin local khi đang sửa React:
 
 ```bash
-docker compose logs nginx --tail 50
-docker compose logs api --tail 50
+cd /root/Documents/port/frontend
+npm install
+npm run dev
 ```
+
+Vite mở `http://localhost:5173` và proxy `/api` sang `http://api.minhhieudev.id.vn`.
 
 ### 9.5. Secret GitHub Actions
 
@@ -424,3 +424,131 @@ ssh -p 22 -i ~/.ssh/gha_deploy root@103.183.120.48
 ```
 
 Vào được shell từ mạng ngoài rồi mới chạy lại workflow Deploy.
+
+## 10. SSL cho `api.minhhieudev.id.vn`
+
+HTTPS dùng chứng chỉ miễn phí của Let's Encrypt. Nginx trong Docker nhận file chứng chỉ từ máy chủ. Làm trên VPS `103.183.120.48`, sau khi `dig +short api.minhhieudev.id.vn A` đã in `103.183.120.48` và `http://api.minhhieudev.id.vn/api/roles` đã trả **200**.
+
+### 10.1. Mở cổng 443
+
+```bash
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw status
+```
+
+- `sudo ufw allow 80/tcp` giữ cổng HTTP. Let's Encrypt kiểm tra tên miền qua cổng này.
+- `sudo ufw allow 443/tcp` mở HTTPS. Trình duyệt và Postman sẽ gọi cổng này.
+- `sudo ufw status` phải thấy `80/tcp` và `443/tcp` là `ALLOW`.
+
+Trên router, nếu API chạy ở máy ảo nhà, chuyển tiếp WAN `443` → `192.168.1.5:443`. VPS `103.183.120.48` thì không cần bước router.
+
+### 10.2. Cài Certbot và xin chứng chỉ
+
+```bash
+sudo apt update
+sudo apt install -y certbot
+cd /root/Documents/port
+git pull
+cd backend/RoleManagement.Api
+mkdir -p certbot/www
+docker compose up -d --build
+sudo certbot certonly --webroot \
+  -w /root/Documents/port/backend/RoleManagement.Api/certbot/www \
+  -d api.minhhieudev.id.vn \
+  --email ban@example.com \
+  --agree-tos \
+  --no-eff-email
+```
+
+- `sudo apt install -y certbot` cài chương trình xin và gia hạn chứng chỉ. Certbot chạy trên Ubuntu, không chạy trong container.
+- `git pull` lấy bản Nginx có đường dẫn `/.well-known/acme-challenge/`.
+- `mkdir -p certbot/www` tạo thư mục Let's Encrypt ghi file kiểm tra. Container Nginx đọc đúng thư mục này.
+- `docker compose up -d --build` chạy lại Nginx với cổng `80`, `443` và hai volume chứng chỉ.
+- `certbot certonly --webroot` chỉ xin file chứng chỉ, không sửa Nginx. `-w` là thư mục webroot. `-d` là đúng tên `api.minhhieudev.id.vn`. `--email` nhận thư hết hạn: thay `ban@example.com` bằng email của bạn. `--agree-tos` chấp nhận điều khoản Let's Encrypt.
+
+Thành công thì có hai file:
+
+- `/etc/letsencrypt/live/api.minhhieudev.id.vn/fullchain.pem`
+- `/etc/letsencrypt/live/api.minhhieudev.id.vn/privkey.pem`
+
+### 10.3. Bật HTTPS trong Nginx
+
+Sửa `backend/RoleManagement.Api/nginx/default.conf`. Thay khối `server` của `api.minhhieudev.id.vn` (khối `listen 80` đầu tiên) bằng hai khối sau. Giữ nguyên khối `server` của `minhhieudev.id.vn`.
+
+```nginx
+server {
+    listen 80;
+    server_name api.minhhieudev.id.vn;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name api.minhhieudev.id.vn;
+
+    ssl_certificate /etc/letsencrypt/live/api.minhhieudev.id.vn/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.minhhieudev.id.vn/privkey.pem;
+
+    client_max_body_size 10m;
+
+    location / {
+        proxy_pass http://rolemanagement_api;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+    }
+}
+```
+
+- Khối cổng `80` vẫn phục vụ file kiểm tra gia hạn chứng chỉ, mọi URL khác chuyển sang `https://`.
+- `ssl_certificate` là chứng chỉ đầy đủ. `ssl_certificate_key` là khóa riêng. Cả hai nằm trong volume `/etc/letsencrypt` đã gắn vào container.
+- `proxy_pass http://rolemanagement_api` vẫn là HTTP nội bộ trong Docker. Chỉ phía ngoài dùng HTTPS.
+- `X-Forwarded-Proto` báo cho API biết client gọi bằng `https`.
+
+Nạp lại Nginx:
+
+```bash
+cd /root/Documents/port/backend/RoleManagement.Api
+docker compose exec nginx nginx -t
+docker compose exec nginx nginx -s reload
+```
+
+- `nginx -t` kiểm tra cú pháp. Phải có dòng `syntax is ok`. Nếu báo không thấy file `.pem`, chứng chỉ chưa được cấp hoặc volume `/etc/letsencrypt` chưa gắn.
+- `nginx -s reload` áp dụng file mới, không tắt container.
+
+### 10.4. Kiểm tra
+
+```bash
+curl -I http://api.minhhieudev.id.vn/api/roles
+curl -i https://api.minhhieudev.id.vn/api/roles
+```
+
+- Lệnh `http://` phải trả `301` và header `Location: https://api.minhhieudev.id.vn/api/roles`.
+- Lệnh `https://` phải trả **200**. Postman dùng base URL `https://api.minhhieudev.id.vn`.
+
+### 10.5. Gia hạn
+
+Chứng chỉ Let's Encrypt hết hạn sau 90 ngày. Certbot tự gia hạn. Thêm lệnh reload Nginx sau khi gia hạn:
+
+```bash
+sudo tee /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh >/dev/null <<'EOF'
+#!/bin/sh
+docker compose -f /root/Documents/port/backend/RoleManagement.Api/docker-compose.yml exec -T nginx nginx -s reload
+EOF
+sudo chmod 755 /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+sudo certbot renew --dry-run
+```
+
+- File hook chạy sau mỗi lần gia hạn thành công. `exec -T` reload Nginx không cần terminal.
+- `certbot renew --dry-run` thử gia hạn, không đổi chứng chỉ thật. Dòng `simulated renewal` là ổn.
