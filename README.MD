@@ -8,11 +8,10 @@ Máy chủ là **Ubuntu 24.04** trên VMware Fusion, card mạng **Bridged Netwo
 | --- | --- |
 | IP máy ảo | `192.168.1.5` |
 | SSH trong mạng nhà | `root@192.168.1.5` |
-| IP public của router | `171.225.184.87` (lấy lại bằng `curl -4 ifconfig.me`) |
+| IP public của router | lấy bằng `curl -4 ifconfig.me` |
 | Tên miền API | `api.minhhieudev.id.vn` |
 | Thư mục project | `/root/Documents/port` |
 | API trong mạng nhà | `http://192.168.1.5:8080` |
-| API qua tên miền | `http://api.minhhieudev.id.vn:8080` |
 | .NET | 10, image `aspnet:10.0`. Tiến trình API bị giới hạn khoảng 256 MB |
 | RAM VPS | 2 GB. API trần 512 MB, PostgreSQL trần 512 MB, `shared_buffers` 128 MB |
 
@@ -235,29 +234,29 @@ Workflow `.github/workflows/deploy.yml` chạy trên runner `ubuntu-latest` củ
 
 | Secret trong `deploy.yml` | Ô trong workflow | Giá trị điền |
 | --- | --- | --- |
-| `VPS_HOST` | `host` | `171.225.184.87` hoặc `api.minhhieudev.id.vn` khi bản ghi A đã đúng |
+| `VPS_HOST` | `host` | IP public của máy đang chạy Docker, lấy bằng `curl -4 ifconfig.me` trên máy đó. Chỉ điền IP, không điền `api.minhhieudev.id.vn` |
 | `VPS_USER` | `username` | `root` |
 | `VPS_SSH_KEY` | `key` | Nội dung file `/root/.ssh/gha_deploy` |
 | `VPS_PORT` | `port` | `22` |
 | `DEPLOY_PATH` | `script` (`cd`) | `/root/Documents/port/backend/RoleManagement.Api` |
 
-`171.225.184.87` là IP public của router nhà tại thời điểm ghi. Nhà mạng có thể đổi IP. Lấy lại trên Ubuntu bằng:
+`VPS_HOST` phải là IP của máy mà Actions SSH vào, không phải tên miền. Tên miền chỉ dùng sau khi bản ghi A đã trỏ đúng máy đó. Lấy IP trên chính máy deploy:
 
 ```bash
 curl -4 ifconfig.me
 ip -4 addr
 ```
 
-- `curl -4 ifconfig.me` hỏi một dịch vụ bên ngoài xem địa chỉ IPv4 nào đang đi ra internet. `-4` buộc dùng IPv4. Kết quả là IP public của router, điền vào `VPS_HOST` và vào bản ghi DNS A.
-- `ip -4 addr` liệt kê địa chỉ IPv4 gắn trên từng card của máy ảo. Card `enp2s0` là `192.168.1.5`. Router phải chuyển tiếp TCP cổng `22` tới địa chỉ này, cổng `22`.
+- `curl -4 ifconfig.me` hỏi một dịch vụ bên ngoài xem địa chỉ IPv4 nào đang đi ra internet. `-4` buộc dùng IPv4. Kết quả điền vào `VPS_HOST`.
+- `ip -4 addr` liệt kê địa chỉ IPv4 gắn trên từng card. Trên máy ảo nhà, card `enp2s0` là `192.168.1.5`. Nếu deploy trên máy này, router phải chuyển tiếp TCP cổng `22` tới `192.168.1.5`.
 
-Dòng `Will download drone-ssh-1.8.1-linux-amd64` chạy trên runner GitHub, không phải trên máy ảo. Log `dial tcp ***:***: i/o timeout` nghĩa là runner chưa mở được TCP tới `VPS_HOST`:`VPS_PORT`. Key chưa được kiểm tra. Từ mạng di động, lệnh sau phải vào được shell rồi mới chạy lại Actions:
+Dòng `Will download drone-ssh-1.8.1-linux-amd64` chạy trên runner GitHub, không phải trên máy ảo. Log `dial tcp ***:***: i/o timeout` nghĩa là runner chưa mở được TCP tới `VPS_HOST`:`VPS_PORT`. Key chưa được kiểm tra. Từ mạng di động, lệnh sau phải vào được shell rồi mới chạy lại Actions. Thay `IP_PUBLIC` bằng đúng số vừa lấy từ `curl -4 ifconfig.me`:
 
 ```bash
-ssh -p 22 -i ~/.ssh/gha_deploy root@171.225.184.87
+ssh -p 22 -i ~/.ssh/gha_deploy root@IP_PUBLIC
 ```
 
-- `ssh -p 22 -i ~/.ssh/gha_deploy root@171.225.184.87` thử đúng đường GitHub Actions sẽ đi: cổng `22`, private key CI, user `root`, IP public. `-p` chọn cổng. Phải chạy lệnh này từ mạng di động, không chạy từ Wi-Fi cùng nhà, vì nhiều router không cho máy trong LAN đi vòng ra IP public của chính router.
+- `ssh -p 22 -i ~/.ssh/gha_deploy root@IP_PUBLIC` thử đúng đường GitHub Actions sẽ đi: cổng `22`, private key CI, user `root`, IP public. `-p` chọn cổng. Phải chạy lệnh này từ mạng di động, không chạy từ Wi-Fi cùng nhà, vì nhiều router không cho máy trong LAN đi vòng ra IP public của chính router.
 
 `timed out` nghĩa là router hoặc nhà mạng chưa mở cổng vào. `Connection refused` nghĩa là gói đã tới nhưng cổng 22 không có dịch vụ lắng nghe.
 
@@ -317,106 +316,75 @@ Bảng dữ liệu tên `Roles`. Mở **RoleManagementDb → Schemas → public 
 
 ## 9. Tên miền `api.minhhieudev.id.vn`
 
-### 9.1. Lỗi đang gặp
+### 9.1. Cách trỏ host đúng
 
-Hai lệnh trên Mac cho kết quả lệch nhau:
+Không đổi bản ghi A sang IP nhà (`171.225.184.87`) nếu API đang chạy trên máy khác. `dig` của bạn đang trả `103.183.120.48`. Đó là IP máy mà tên miền đang gắn. Giữ value đó nếu Docker Compose chạy trên máy `103.183.120.48`.
+
+Vào trang DNS của `minhhieudev.id.vn`:
+
+| Ô | Giá trị đúng | Giá trị sai |
+| --- | --- | --- |
+| Type | `A` | |
+| Host / Name | chỉ `api` | `api.minhhieudev.id.vn`, `@`, IP, hoặc để trống rồi ghi full tên |
+| Value / Points to | IP máy đang chạy Docker, ví dụ `103.183.120.48` | `192.168.1.5`, hoặc IP nhà `171.225.184.87` khi API không chạy ở nhà |
+| TTL | `300` | |
+
+Host chỉ là nhãn `api`. Panel sẽ tạo tên đầy đủ `api.minhhieudev.id.vn`. Ghi full tên vào ô Host sẽ thành `api.minhhieudev.id.vn.minhhieudev.id.vn`.
+
+`VPS_HOST` trên GitHub chỉ điền IP, ví dụ `103.183.120.48`. Không điền `api.minhhieudev.id.vn`.
+
+### 9.2. Kiểm tra DNS khớp máy deploy
+
+Trên **máy đang chạy** `docker compose`:
 
 ```bash
 curl -4 ifconfig.me
-# 171.225.184.87
-
-dig +short api.minhhieudev.id.vn A
-# 103.183.120.48
-
-nslookup api.minhhieudev.id.vn
-# Address: 103.183.120.48
 ```
 
-- `171.225.184.87` là IP public thật của router nhà lúc này.
-- `103.183.120.48` là value đang ghi trong bản ghi A. Đó là máy khác, không phải máy ảo của bạn.
-- `192.168.1.5` là IP LAN. Không đưa số này vào bản ghi A trên internet.
-
-DNS đang đúng cú pháp nhưng trỏ sai chỗ. Sửa bằng cách đổi value của bản ghi A.
-
-### 9.2. Sửa bản ghi A
-
-Vào trang quản lý DNS của `minhhieudev.id.vn` (nhà đăng ký tên miền hoặc Cloudflare, nếu đang dùng):
-
-| Ô | Giá trị đúng |
-| --- | --- |
-| Type | `A` |
-| Host / Name | `api` |
-| Value / Points to | `171.225.184.87` |
-| TTL | `300` |
-
-Lưu bản ghi. Nếu đang có bản ghi A `api` trỏ `103.183.120.48`, sửa value đó, không tạo thêm bản ghi A trùng tên.
-
-### 9.3. Đợi TTL và kiểm tra lại
-
-TTL `300` nghĩa là máy DNS khác có thể giữ IP cũ tối đa khoảng năm phút. Sau khi sửa:
+Trên Mac:
 
 ```bash
-curl -4 ifconfig.me
 dig +short api.minhhieudev.id.vn A
 dig @8.8.8.8 +short api.minhhieudev.id.vn A
 ```
 
-- `curl -4 ifconfig.me` in IP public hiện tại.
-- `dig +short api.minhhieudev.id.vn A` hỏi DNS mặc định của Mac.
-- `dig @8.8.8.8 +short ...` hỏi thẳng Google DNS, bỏ cache DNS nhà mạng trên Mac.
+Hai phía phải cùng một IP. Hiện tại `dig` ra `103.183.120.48` thì trên máy đó `curl -4 ifconfig.me` cũng phải ra `103.183.120.48`.
 
-Hai kết quả `dig` phải in đúng `171.225.184.87`. Nếu vẫn thấy `103.183.120.48`, đợi hết TTL hoặc xóa cache DNS trên Mac:
+Nếu muốn API chạy trên máy ảo nhà thì phải deploy Compose trên máy nhà **và** đổi Value của bản ghi A sang IP public nhà sau khi `curl -4 ifconfig.me`. Không chỉ sửa DNS mà để container chạy chỗ khác.
 
-```bash
-sudo dscacheutil -flushcache
-sudo killall -HUP mDNSResponder
-```
+### 9.3. Mở cổng trên máy đang host API
 
-- `dscacheutil -flushcache` xóa cache DNS của macOS.
-- `killall -HUP mDNSResponder` bảo dịch vụ DNS của macOS đọc lại cấu hình.
-
-Nhà mạng Viettel/FPT thường cấp IP động. Mỗi lần `curl -4 ifconfig.me` ra số khác với bản ghi A, phải sửa lại value A và secret `VPS_HOST`.
-
-### 9.4. Chuyển tiếp cổng trên router
-
-DNS đúng chưa đủ. Router phải chuyển tiếp cổng vào máy ảo:
-
-| Cổng ngoài (WAN) | Cổng trong (LAN) | Máy đích | Mục đích |
-| --- | --- | --- | --- |
-| `22` | `22` | `192.168.1.5` | GitHub Actions SSH |
-| `8080` | `8080` | `192.168.1.5` | Gọi API bằng tên miền |
-
-Không chuyển tiếp `5432`.
-
-Trên Ubuntu:
+Trên máy `103.183.120.48` (hoặc máy mà bản ghi A đang trỏ):
 
 ```bash
-sudo ufw allow 8080/tcp
 sudo ufw allow OpenSSH
+sudo ufw allow 8080/tcp
 sudo ufw status
-docker compose -f /root/Documents/port/backend/RoleManagement.Api/docker-compose.yml ps
+cd /root/Documents/port/backend/RoleManagement.Api
+docker compose ps
 ```
 
 `api` phải `running`, `postgres` phải `healthy`.
 
-### 9.5. Thử API bằng tên miền
+Nếu máy đó là VPS thuê sẵn thì không cần port forward router nhà. Nếu sau này chuyển API về máy ảo `192.168.1.5` thì mới forward WAN `22` và `8080` tới `192.168.1.5`.
 
-Từ **mạng di động**, không từ Wi-Fi nhà:
+### 9.4. Thử API bằng tên miền
+
+Từ mạng ngoài (di động):
 
 ```bash
 curl -i http://api.minhhieudev.id.vn:8080/api/roles
 ```
 
-- **200** hoặc body `[]` nghĩa là DNS, port forward và container đều ổn.
-- `Connection timed out` nghĩa là chưa forward cổng `8080` hoặc firewall chặn.
-- Vào nhầm trang/máy khác nghĩa là bản ghi A vẫn còn IP cũ.
+Postman base URL: `http://api.minhhieudev.id.vn:8080`.
 
-Postman base URL: `http://api.minhhieudev.id.vn:8080`. Các đường dẫn `/api/roles` giữ như mục 7.
+- **200** hoặc `[]`: DNS và API khớp.
+- Timeout: firewall hoặc container chưa mở `8080` trên đúng máy mà DNS trỏ tới.
+- Trang/máy lạ: Value của bản ghi A không phải máy đang chạy project này.
 
-### 9.6. (Tuỳ chọn) Bỏ `:8080` bằng Nginx
+### 9.5. (Tuỳ chọn) Nginx bỏ `:8080`
 
-1. Router: WAN `80` → LAN `80` tới `192.168.1.5`.
-2. Trên Ubuntu:
+Chỉ chạy trên máy mà `api.minhhieudev.id.vn` đang trỏ:
 
 ```bash
 sudo apt install -y nginx
@@ -439,23 +407,19 @@ sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t
 sudo systemctl enable --now nginx
 sudo systemctl reload nginx
-curl -i http://api.minhhieudev.id.vn/api/roles
 ```
 
-- `server_name api.minhhieudev.id.vn` phải khớp bản ghi A.
-- `proxy_pass http://127.0.0.1:8080` đưa request sang container API.
-- `nginx -t` phải báo `ok` trước khi `reload`.
+### 9.6. Secret GitHub Actions
 
-### 9.7. Cập nhật GitHub Actions
-
-Trong **Settings → Secrets and variables → Actions**, sửa `VPS_HOST` thành `171.225.184.87` (an toàn nhất) hoặc `api.minhhieudev.id.vn` sau khi `dig` đã trả đúng IP đó.
-
-Từ mạng di động:
+| Secret | Giá trị |
+| --- | --- |
+| `VPS_HOST` | `103.183.120.48` nếu API chạy trên máy đó. Chỉ IP, không dùng tên miền |
+| `VPS_USER` | `root` |
+| `VPS_PORT` | `22` |
+| `DEPLOY_PATH` | `/root/Documents/port/backend/RoleManagement.Api` |
 
 ```bash
-ssh -p 22 -i ~/.ssh/gha_deploy root@171.225.184.87
-# hoặc sau khi DNS đúng:
-ssh -p 22 -i ~/.ssh/gha_deploy root@api.minhhieudev.id.vn
+ssh -p 22 -i ~/.ssh/gha_deploy root@103.183.120.48
 ```
 
-Vào được shell rồi mới chạy lại workflow Deploy.
+Vào được shell từ mạng ngoài rồi mới chạy lại workflow Deploy.
