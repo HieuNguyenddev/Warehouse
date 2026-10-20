@@ -17,9 +17,12 @@ builder.Services.AddCors(options =>
             .WithOrigins(
                 "http://localhost:5173",
                 "http://127.0.0.1:5173",
+                "http://admin.minhhieudev.id.vn",
+                "https://admin.minhhieudev.id.vn",
                 "http://minhhieudev.id.vn",
                 "http://www.minhhieudev.id.vn",
                 "http://api.minhhieudev.id.vn",
+                "https://api.minhhieudev.id.vn",
                 "http://103.183.120.48")
             .AllowAnyHeader()
             .AllowAnyMethod());

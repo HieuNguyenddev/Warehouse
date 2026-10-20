@@ -1,6 +1,6 @@
 # Role Management API
 
-API ASP.NET Core (.NET 10), admin React, PostgreSQL 16 và Nginx, chạy bằng Docker Compose trong `backend/RoleManagement.Api`. Nginx lắng nghe cổng `80`: phục vụ giao diện admin tại `minhhieudev.id.vn`, proxy API tại `api.minhhieudev.id.vn` và đường dẫn `/api` trên trang gốc. PostgreSQL phù hợp máy 2 GB.
+API ASP.NET Core (.NET 10), admin React, PostgreSQL 16 và Nginx, chạy bằng Docker Compose trong `backend/RoleManagement.Api`. Mỗi lần đẩy lên nhánh `main`, GitHub Actions SSH vào VPS, `git pull` rồi `docker compose up -d --build` để build lại cả API và frontend. Nginx đưa `admin.minhhieudev.id.vn` tới container frontend và `api.minhhieudev.id.vn` tới API.
 
 Máy chủ là **Ubuntu 24.04** trên VMware Fusion, card mạng **Bridged Networking → Autodetect**. Các lệnh dưới đây chạy bằng user `root`.
 
@@ -9,13 +9,13 @@ Máy chủ là **Ubuntu 24.04** trên VMware Fusion, card mạng **Bridged Netwo
 | IP máy ảo | `192.168.1.5` |
 | SSH trong mạng nhà | `root@192.168.1.5` |
 | IP public của router | lấy bằng `curl -4 ifconfig.me` |
-| Tên miền gốc | `minhhieudev.id.vn` |
+| Tên miền admin | `admin.minhhieudev.id.vn` |
 | Tên miền API | `api.minhhieudev.id.vn` |
 | Thư mục project | `/root/Documents/port` |
-| Admin (React) | `http://minhhieudev.id.vn` hoặc `http://192.168.1.5` |
-| API thuần | `http://api.minhhieudev.id.vn` |
+| Admin (React) | `http://admin.minhhieudev.id.vn` |
+| API | `https://api.minhhieudev.id.vn` |
 | .NET | 10, image `aspnet:10.0`. Tiến trình API bị giới hạn khoảng 256 MB |
-| RAM VPS | 2 GB. API 512 MB, PostgreSQL 512 MB, Nginx+frontend 96 MB |
+| RAM VPS | 2 GB. API 512 MB, PostgreSQL 512 MB, frontend 64 MB, Nginx 32 MB |
 
 ## 1. Kiểm tra Ubuntu 24.04
 
@@ -181,9 +181,9 @@ docker compose up -d --build
 - `cd "$HOME/Documents/port"` chuyển thư mục làm việc hiện tại vào đó. Các lệnh tiếp theo đọc và ghi file tại đây.
 - `git clone https://github.com/HieuNguyenddev/testCICD.git .` tải repository về thư mục hiện tại. Dấu `.` ở cuối nghĩa là bỏ nội dung vào thư mục đang đứng, không tạo thêm thư mục `testCICD`.
 - `cd backend/RoleManagement.Api` vào thư mục có `Dockerfile` và `docker-compose.yml`.
-- `docker compose up -d --build` build image API và image Nginx (có build React trong `frontend/`), rồi chạy API, PostgreSQL và Nginx. `-d` chạy nền. `--build` build lại khi mã nguồn đổi. API chỉ chạy sau khi PostgreSQL healthy, rồi tự tạo bảng.
+- `docker compose up -d --build` build image API (`Dockerfile`) và image admin (`frontend/Dockerfile`), rồi chạy API, PostgreSQL, frontend và Nginx. `-d` chạy nền. `--build` build lại khi mã nguồn đổi. API chỉ chạy sau khi PostgreSQL healthy, rồi tự tạo bảng.
 
-Đường dẫn đầy đủ là `/root/Documents/port`. Nginx lắng nghe cổng `80`. Admin React ở `/`. API nội bộ cổng `8080`. PostgreSQL cổng `5432`, database `RoleManagementDb`.
+Đường dẫn đầy đủ là `/root/Documents/port`. Nginx lắng nghe cổng `80` và `443`. Admin ở `http://admin.minhhieudev.id.vn`. API nội bộ cổng `8080`. PostgreSQL cổng `5432`, database `RoleManagementDb`. GitHub Actions làm đúng lệnh này sau mỗi lần push `main`.
 
 Kiểm tra container:
 
@@ -204,7 +204,7 @@ docker compose up -d --build
 docker compose ps
 ```
 
-`docker compose ps` phải hiện `api` và `nginx` là `running`, `postgres` là `healthy`.
+`docker compose ps` phải hiện `api`, `frontend` và `nginx` là `running`, `postgres` là `healthy`.
 
 Cập nhật tay khi cần:
 
@@ -232,7 +232,15 @@ docker compose logs api --tail 50
 
 Vào repository: **Settings → Secrets and variables → Actions → New repository secret**.
 
-Workflow `.github/workflows/deploy.yml` chạy trên runner `ubuntu-latest` của GitHub, SSH vào Ubuntu 24.04 bằng key, rồi `git pull` và `docker compose up -d --build`. Tên secret phải khớp từng chữ với file workflow.
+Workflow `.github/workflows/deploy.yml` chạy khi có push lên nhánh `main`, hoặc khi bấm **Run workflow**. Runner `ubuntu-latest` của GitHub SSH vào VPS bằng key, kéo cả repository, rồi build và chạy API, frontend, Nginx và PostgreSQL. Tên secret phải khớp từng chữ với file workflow.
+
+Script trên VPS làm lần lượt:
+
+1. `cd` vào `DEPLOY_PATH`, thư mục có `docker-compose.yml`.
+2. `git pull --ff-only` ở thư mục gốc repository, nên cả `frontend/` và `backend/` đều được cập nhật.
+3. Kiểm tra file `frontend/Dockerfile` tồn tại. Thiếu file thì dừng, không deploy bản cũ.
+4. `docker compose up -d --build` build image API và image admin, rồi tạo lại container.
+5. `docker compose exec -T nginx nginx -t` rồi `nginx -s reload` để Nginx nhận container frontend mới. Admin sau bước này là `http://admin.minhhieudev.id.vn`. API là `https://api.minhhieudev.id.vn`.
 
 | Secret trong `deploy.yml` | Ô trong workflow | Giá trị điền |
 | --- | --- | --- |
@@ -318,7 +326,7 @@ Bảng dữ liệu tên `Roles`. Mở **RoleManagementDb → Schemas → public 
 
 ## 9. Trỏ `103.183.120.48` vào `minhhieudev.id.vn` và `api.minhhieudev.id.vn`
 
-DNS không mở website. Bản ghi A chỉ nói: tên miền này đi tới IPv4 nào. Muốn `http://minhhieudev.id.vn` và `http://api.minhhieudev.id.vn` tới máy `103.183.120.48`, tạo **hai** bản ghi A cùng Value.
+DNS không mở website. Bản ghi A chỉ nói: tên miền này đi tới IPv4 nào. Muốn admin, tên miền gốc và API tới máy `103.183.120.48`, tạo ba bản ghi A cùng Value.
 
 ### 9.1. Tạo bản ghi A trên panel DNS
 
@@ -327,12 +335,14 @@ DNS không mở website. Bản ghi A chỉ nói: tên miền này đi tới IPv4
 | Mục đích | Type | Host / Name | Value | TTL | Tên đầy đủ sau khi lưu |
 | --- | --- | --- | --- | --- | --- |
 | Trang gốc | `A` | `@` (hoặc để trống) | `103.183.120.48` | `300` | `minhhieudev.id.vn` |
+| Admin | `A` | `admin` | `103.183.120.48` | `300` | `admin.minhhieudev.id.vn` |
 | API | `A` | `api` | `103.183.120.48` | `300` | `api.minhhieudev.id.vn` |
 
 Giải thích từng ô:
 
 - **Type `A`**: gắn tên với IPv4. Không dùng `CNAME` để trỏ root `@` sang IP.
 - **Host `@`**: tên gốc `minhhieudev.id.vn`. Một số panel ghi `root` hoặc để trống thay cho `@`.
+- **Host `admin`**: chỉ gõ `admin`. Panel tạo `admin.minhhieudev.id.vn`. Không gõ full tên vào ô Host.
 - **Host `api`**: chỉ gõ `api`. Panel tự ghép thành `api.minhhieudev.id.vn`. Không gõ `api.minhhieudev.id.vn` vào ô Host (sẽ thành tên lỗi `api.minhhieudev.id.vn.minhhieudev.id.vn`).
 - **Value `103.183.120.48`**: IP máy VPS đang chạy Docker / Nginx. Không ghi `http://`, không ghi cổng, không ghi `192.168.1.5`.
 - **TTL `300`**: cache khoảng 5 phút. Đổi IP xong đợi vài phút rồi kiểm tra lại.
@@ -347,12 +357,11 @@ Trên Mac, sau 1–5 phút:
 
 ```bash
 dig +short minhhieudev.id.vn A
+dig +short admin.minhhieudev.id.vn A
 dig +short api.minhhieudev.id.vn A
-dig @8.8.8.8 +short minhhieudev.id.vn A
-dig @8.8.8.8 +short api.minhhieudev.id.vn A
 ```
 
-Cả bốn lệnh phải in `103.183.120.48`.
+Cả ba lệnh phải in `103.183.120.48`.
 
 Trên VPS `103.183.120.48`:
 
@@ -379,12 +388,13 @@ docker compose up -d --build
 docker compose ps
 ```
 
-`api`, `nginx` phải `running`. `postgres` phải `healthy`.
+`api`, `frontend`, `nginx` phải `running`. `postgres` phải `healthy`.
 
-Nginx trong Compose đọc `nginx/default.conf` và phục vụ bản build React:
+Nginx trong Compose đọc `nginx/default.conf`:
 
-- `api.minhhieudev.id.vn` → proxy toàn bộ sang `http://api:8080`
-- `minhhieudev.id.vn` → file tĩnh admin; `/api/` proxy sang API
+- `admin.minhhieudev.id.vn` → container `frontend` (image build từ `frontend/Dockerfile`)
+- `api.minhhieudev.id.vn` → API cổng `8080`
+- `minhhieudev.id.vn` → chuyển hướng sang `http://admin.minhhieudev.id.vn`
 
 Không cài Nginx bằng `apt` trên host. Nếu chạy trên máy ảo `192.168.1.5` thì forward WAN `22` và `80` tới máy đó.
 
@@ -393,12 +403,11 @@ Không cài Nginx bằng `apt` trên host. Nếu chạy trên máy ảo `192.168
 Từ mạng ngoài (di động):
 
 ```bash
-curl -i http://minhhieudev.id.vn/
-curl -i http://minhhieudev.id.vn/api/roles
-curl -i http://api.minhhieudev.id.vn/api/roles
+curl -i http://admin.minhhieudev.id.vn/
+curl -i https://api.minhhieudev.id.vn/api/roles
 ```
 
-Mở trình duyệt `http://minhhieudev.id.vn` để dùng giao diện admin (tạo / sửa / xóa vai trò). Postman base URL API: `http://api.minhhieudev.id.vn`.
+Mở trình duyệt `http://admin.minhhieudev.id.vn` để dùng giao diện admin (tạo / sửa / xóa vai trò). Postman base URL API: `https://api.minhhieudev.id.vn`.
 
 Chạy admin local khi đang sửa React:
 

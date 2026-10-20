@@ -21,5 +21,10 @@ jobs:
           script: |
             set -euo pipefail
             cd "${{ secrets.DEPLOY_PATH }}"
-            git -C "$(git rev-parse --show-toplevel)" pull --ff-only
+            ROOT="$(git rev-parse --show-toplevel)"
+            git -C "$ROOT" pull --ff-only
+            test -f "$ROOT/frontend/Dockerfile"
             docker compose up -d --build
+            docker compose exec -T nginx nginx -t
+            docker compose exec -T nginx nginx -s reload
+            docker compose ps
