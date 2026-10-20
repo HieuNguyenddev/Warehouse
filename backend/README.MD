@@ -160,7 +160,7 @@ sudo ufw status
 
 ```bash
 sudo mkdir -p /root/Documents/port
-sudo git clone https://github.com/HieuNguyenddev/testCICD.git /root/Documents/port
+sudo git clone https://github.com/HieuNguyenddev/Warehouse.git /root/Documents/port
 cd /root/Documents/port/backend
 ```
 

@@ -172,14 +172,14 @@ ssh -i "$HOME/.ssh/gha_deploy" root@192.168.1.5
 ```bash
 mkdir -p "$HOME/Documents/port"
 cd "$HOME/Documents/port"
-git clone https://github.com/HieuNguyenddev/testCICD.git .
+git clone https://github.com/HieuNguyenddev/Warehouse.git .
 cd backend
 docker compose up -d --build
 ```
 
 - `mkdir -p "$HOME/Documents/port"` tạo `/root/Documents/port`. `-p` tạo cả `Documents` nếu chưa có.
 - `cd "$HOME/Documents/port"` chuyển thư mục làm việc hiện tại vào đó. Các lệnh tiếp theo đọc và ghi file tại đây.
-- `git clone https://github.com/HieuNguyenddev/testCICD.git .` tải repository về thư mục hiện tại. Dấu `.` ở cuối nghĩa là bỏ nội dung vào thư mục đang đứng, không tạo thêm thư mục `testCICD`.
+- `git clone https://github.com/HieuNguyenddev/Warehouse.git .` tải repository về thư mục hiện tại. Dấu `.` ở cuối nghĩa là bỏ nội dung vào thư mục đang đứng, không tạo thêm thư mục `Warehouse`.
 - `cd backend` vào thư mục có `Dockerfile` và `docker-compose.yml`.
 - `docker compose up -d --build` build image API (`Dockerfile`) và image admin (`frontend/Dockerfile`), rồi chạy API, PostgreSQL, frontend và Nginx. `-d` chạy nền. `--build` build lại khi mã nguồn đổi. API chỉ chạy sau khi PostgreSQL healthy, rồi tự tạo bảng.
 
