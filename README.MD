@@ -12,7 +12,7 @@ Máy chủ là **Ubuntu 24.04** trên VMware Fusion, card mạng **Bridged Netwo
 | Tên miền admin | `admin.minhhieudev.id.vn` |
 | Tên miền API | `api.minhhieudev.id.vn` |
 | Thư mục project | `/root/Documents/port` |
-| Admin (React) | `http://admin.minhhieudev.id.vn` |
+| Admin (React) | `https://admin.minhhieudev.id.vn` |
 | API | `https://api.minhhieudev.id.vn` |
 | .NET | 10, image `aspnet:10.0`. Tiến trình API bị giới hạn khoảng 256 MB |
 | RAM VPS | 2 GB. API 512 MB, PostgreSQL 512 MB, frontend 64 MB, Nginx 32 MB |
@@ -183,7 +183,7 @@ docker compose up -d --build
 - `cd backend/RoleManagement.Api` vào thư mục có `Dockerfile` và `docker-compose.yml`.
 - `docker compose up -d --build` build image API (`Dockerfile`) và image admin (`frontend/Dockerfile`), rồi chạy API, PostgreSQL, frontend và Nginx. `-d` chạy nền. `--build` build lại khi mã nguồn đổi. API chỉ chạy sau khi PostgreSQL healthy, rồi tự tạo bảng.
 
-Đường dẫn đầy đủ là `/root/Documents/port`. Nginx lắng nghe cổng `80` và `443`. Admin ở `http://admin.minhhieudev.id.vn`. API nội bộ cổng `8080`. PostgreSQL cổng `5432`, database `RoleManagementDb`. GitHub Actions làm đúng lệnh này sau mỗi lần push `main`.
+Đường dẫn đầy đủ là `/root/Documents/port`. Nginx lắng nghe cổng `80` và `443`. Admin ở `https://admin.minhhieudev.id.vn`. API nội bộ cổng `8080`. PostgreSQL cổng `5432`, database `RoleManagementDb`. GitHub Actions làm đúng lệnh này sau mỗi lần push `main`.
 
 Kiểm tra container:
 
@@ -240,7 +240,9 @@ Script trên VPS làm lần lượt:
 2. `git pull --ff-only` ở thư mục gốc repository, nên cả `frontend/` và `backend/` đều được cập nhật.
 3. Kiểm tra file `frontend/Dockerfile` tồn tại. Thiếu file thì dừng, không deploy bản cũ.
 4. `docker compose up -d --build` build image API và image admin, rồi tạo lại container.
-5. `docker compose exec -T nginx nginx -t` rồi `nginx -s reload` để Nginx nhận container frontend mới. Admin sau bước này là `http://admin.minhhieudev.id.vn`. API là `https://api.minhhieudev.id.vn`.
+5. Nếu chưa có chứng chỉ `admin.minhhieudev.id.vn`, Certbot xin chứng chỉ Let's Encrypt qua cổng 80 khi Nginx cũ vẫn đang chạy.
+6. `docker compose up -d --build` build image API và image admin, rồi tạo lại container.
+7. `docker compose exec -T nginx nginx -t` rồi `nginx -s reload`. Admin là `https://admin.minhhieudev.id.vn`. API là `https://api.minhhieudev.id.vn`.
 
 | Secret trong `deploy.yml` | Ô trong workflow | Giá trị điền |
 | --- | --- | --- |
@@ -394,7 +396,7 @@ Nginx trong Compose đọc `nginx/default.conf`:
 
 - `admin.minhhieudev.id.vn` → container `frontend` (image build từ `frontend/Dockerfile`)
 - `api.minhhieudev.id.vn` → API cổng `8080`
-- `minhhieudev.id.vn` → chuyển hướng sang `http://admin.minhhieudev.id.vn`
+- `minhhieudev.id.vn` → chuyển hướng sang `https://admin.minhhieudev.id.vn`
 
 Không cài Nginx bằng `apt` trên host. Nếu chạy trên máy ảo `192.168.1.5` thì forward WAN `22` và `80` tới máy đó.
 
@@ -407,7 +409,7 @@ curl -i http://admin.minhhieudev.id.vn/
 curl -i https://api.minhhieudev.id.vn/api/roles
 ```
 
-Mở trình duyệt `http://admin.minhhieudev.id.vn` để dùng giao diện admin (tạo / sửa / xóa vai trò). Postman base URL API: `https://api.minhhieudev.id.vn`.
+Mở trình duyệt `https://admin.minhhieudev.id.vn` để dùng giao diện admin (tạo / sửa / xóa vai trò). Postman base URL API: `https://api.minhhieudev.id.vn`.
 
 Chạy admin local khi đang sửa React:
 
@@ -567,3 +569,66 @@ sudo certbot renew --dry-run
 
 - File hook chạy sau mỗi lần gia hạn thành công. `exec -T` reload Nginx không cần terminal.
 - `certbot renew --dry-run` thử gia hạn, không đổi chứng chỉ thật. Dòng `simulated renewal` là ổn.
+
+## 11. SSL cho `admin.minhhieudev.id.vn`
+
+Admin React không tự giữ chứng chỉ. Container `frontend` chỉ nói HTTP trong mạng Docker. Nginx ở cổng 443 nhận HTTPS rồi chuyển vào `frontend:80`.
+
+Điều kiện: `dig +short admin.minhhieudev.id.vn A` in `103.183.120.48`, cổng `80` và `443` đã mở, và `http://admin.minhhieudev.id.vn` đang mở được giao diện.
+
+### 11.1. Xin chứng chỉ
+
+Chạy khi Nginx hiện tại vẫn phục vụ HTTP, trước khi bật khối `listen 443` của admin:
+
+```bash
+cd /root/Documents/port/backend/RoleManagement.Api
+mkdir -p certbot/www
+sudo certbot certonly --webroot --non-interactive \
+  -w /root/Documents/port/backend/RoleManagement.Api/certbot/www \
+  -d admin.minhhieudev.id.vn \
+  --email hieugm22@gmail.com \
+  --agree-tos \
+  --no-eff-email
+```
+
+- `--webroot` ghi file kiểm tra vào `certbot/www`. Nginx đang chạy trả file đó ở `/.well-known/acme-challenge/`.
+- `-d admin.minhhieudev.id.vn` là tên trên chứng chỉ. Khác với chứng chỉ của `api.minhhieudev.id.vn`.
+- `--non-interactive` không hỏi trên terminal, nên GitHub Actions chạy được lệnh này.
+
+File sau khi thành công:
+
+- `/etc/letsencrypt/live/admin.minhhieudev.id.vn/fullchain.pem`
+- `/etc/letsencrypt/live/admin.minhhieudev.id.vn/privkey.pem`
+
+Workflow Deploy tự chạy Certbot nếu hai file này chưa có, rồi mới `docker compose up`.
+
+### 11.2. Nginx
+
+`backend/RoleManagement.Api/nginx/default.conf` đã có hai khối cho admin:
+
+- cổng `80`: giữ đường dẫn kiểm tra chứng chỉ, URL còn lại trả `301` sang `https://admin.minhhieudev.id.vn`
+- cổng `443`: dùng hai file `.pem` ở trên và `proxy_pass` tới container `frontend`
+
+`minhhieudev.id.vn` chuyển hướng sang `https://admin.minhhieudev.id.vn`.
+
+Nạp cấu hình trong container:
+
+```bash
+cd /root/Documents/port/backend/RoleManagement.Api
+docker compose exec nginx nginx -t
+docker compose exec nginx nginx -s reload
+```
+
+`nginx -t` phải in `syntax is ok`. Thiếu file `.pem` thì Nginx không khởi động. Không dùng `systemctl reload nginx`.
+
+### 11.3. Kiểm tra
+
+```bash
+curl -I http://admin.minhhieudev.id.vn/
+curl -I https://admin.minhhieudev.id.vn/
+```
+
+- HTTP trả `301` tới `https://admin.minhhieudev.id.vn/`.
+- HTTPS trả **200**. Trình duyệt mở `https://admin.minhhieudev.id.vn`.
+
+Gia hạn dùng chung hook ở mục 10.6. `certbot renew` gia hạn mọi chứng chỉ trên máy, rồi reload Nginx.
