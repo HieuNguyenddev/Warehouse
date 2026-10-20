@@ -9,6 +9,9 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=RoleManagementDb;Username=postgres;Password=${POSTGRES_PASSWORD}"
+      Jwt__Key: ${JWT_KEY:-k7F3pQ9mR2vL8xN4cH6sT1wY5bD0eA7uJ3gZ8nM2qP6r}
+      Seed__Username: ${SEED_USERNAME:-admin}
+      Seed__Password: ${SEED_PASSWORD:-Admin@123456}
     depends_on:
       postgres:
         condition: service_healthy

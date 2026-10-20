@@ -7,6 +7,8 @@ public enum RoleError
     None,
     NotFound,
     DuplicateName,
+    InUse,
+    Protected,
 }
 
 public class RoleResult
@@ -32,5 +34,15 @@ public class RoleResult
     public static RoleResult Duplicate(string message)
     {
         return new RoleResult { Error = RoleError.DuplicateName, Message = message };
+    }
+
+    public static RoleResult InUse(string message)
+    {
+        return new RoleResult { Error = RoleError.InUse, Message = message };
+    }
+
+    public static RoleResult Protected(string message)
+    {
+        return new RoleResult { Error = RoleError.Protected, Message = message };
     }
 }

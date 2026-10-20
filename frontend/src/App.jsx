@@ -1,165 +1,76 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { createRole, deleteRole, getRoles, updateRole } from "./api/roles";
+import { useCallback, useEffect, useState } from "react";
+import { getRoles } from "./api/roles";
+import { clearSession, readSession } from "./api/session";
+import { getUsers } from "./api/users";
 import Icon from "./components/Icon.jsx";
-import RoleForm from "./components/RoleForm.jsx";
-import RoleTable from "./components/RoleTable.jsx";
-
-const emptyForm = { name: "", description: "" };
+import LoginPage from "./components/LoginPage.jsx";
+import RolesPage from "./components/RolesPage.jsx";
+import UsersPage from "./components/UsersPage.jsx";
 
 export default function App() {
-  const [roles, setRoles] = useState([]);
-  const [form, setForm] = useState(emptyForm);
-  const [editingId, setEditingId] = useState(null);
-  const [formOpen, setFormOpen] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState(null);
-  const [query, setQuery] = useState("");
+  const [session, setSession] = useState(() => readSession());
+  const [page, setPage] = useState("roles");
   const [navOpen, setNavOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [error, setError] = useState("");
-  const [formError, setFormError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [roleCount, setRoleCount] = useState(0);
+  const [userCount, setUserCount] = useState(0);
 
-  const loadRoles = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const data = await getRoles();
-      setRoles(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setError(err.message || "Không tải được danh sách vai trò.");
-    } finally {
-      setLoading(false);
-    }
+  const setRoleTotal = useCallback((count) => setRoleCount(count), []);
+  const setUserTotal = useCallback((count) => setUserCount(count), []);
+  const openRoles = useCallback(() => {
+    setPage("roles");
+    setNavOpen(false);
   }, []);
 
   useEffect(() => {
-    loadRoles();
-  }, [loadRoles]);
-
-  useEffect(() => {
-    if (!notice) {
-      return undefined;
+    function onLogout() {
+      setSession(null);
     }
-    const timer = window.setTimeout(() => setNotice(""), 3200);
-    return () => window.clearTimeout(timer);
-  }, [notice]);
+
+    window.addEventListener("auth:logout", onLogout);
+    return () => window.removeEventListener("auth:logout", onLogout);
+  }, []);
 
   useEffect(() => {
-    const locked = formOpen || pendingDelete;
-    document.body.classList.toggle("is-locked", locked);
-    if (!locked) {
+    if (!session) {
       return undefined;
     }
 
-    function onKey(event) {
-      if (event.key === "Escape" && !saving && !deleting) {
-        closeForm();
-        setPendingDelete(null);
-      }
-    }
+    let cancelled = false;
 
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [formOpen, pendingDelete, saving, deleting]);
+    getRoles()
+      .then((data) => {
+        if (!cancelled && Array.isArray(data)) {
+          setRoleCount(data.length);
+        }
+      })
+      .catch(() => {});
 
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    const list = needle
-      ? roles.filter((role) =>
-          `${role.name || ""} ${role.description || ""}`.toLowerCase().includes(needle),
-        )
-      : roles;
+    getUsers()
+      .then((data) => {
+        if (!cancelled && Array.isArray(data)) {
+          setUserCount(data.length);
+        }
+      })
+      .catch(() => {});
 
-    return [...list].sort((left, right) => {
-      const leftTime = new Date(left.updatedAt || left.createdAt || 0).getTime();
-      const rightTime = new Date(right.updatedAt || right.createdAt || 0).getTime();
-      return rightTime - leftTime;
-    });
-  }, [roles, query]);
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
 
-  const described = roles.filter((role) => role.description).length;
-
-  function resetForm() {
-    setForm(emptyForm);
-    setEditingId(null);
-    setFormError("");
-  }
-
-  function closeForm() {
-    if (saving) {
-      return;
-    }
-    setFormOpen(false);
-    resetForm();
-  }
-
-  function openCreate() {
-    resetForm();
-    setFormOpen(true);
+  function logout() {
+    clearSession();
+    setSession(null);
     setNavOpen(false);
   }
 
-  function startEdit(role) {
-    setEditingId(role.id);
-    setForm({
-      name: role.name || "",
-      description: role.description || "",
-    });
-    setFormError("");
-    setFormOpen(true);
+  if (!session) {
+    return <LoginPage onSuccess={setSession} />;
   }
 
-  async function handleSubmit(event) {
-    event.preventDefault();
-    setSaving(true);
-    setFormError("");
-
-    const payload = {
-      name: form.name.trim(),
-      description: form.description.trim() || null,
-    };
-
-    try {
-      if (editingId == null) {
-        await createRole(payload);
-        setNotice("Đã tạo vai trò mới.");
-      } else {
-        await updateRole(editingId, payload);
-        setNotice("Đã cập nhật vai trò.");
-      }
-      setFormOpen(false);
-      resetForm();
-      await loadRoles();
-    } catch (err) {
-      setFormError(err.message || "Không lưu được vai trò.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function confirmDelete() {
-    if (!pendingDelete) {
-      return;
-    }
-
-    setDeleting(true);
-    setError("");
-    try {
-      await deleteRole(pendingDelete.id);
-      if (editingId === pendingDelete.id) {
-        closeForm();
-      }
-      setNotice(`Đã xóa “${pendingDelete.name}”.`);
-      setPendingDelete(null);
-      await loadRoles();
-    } catch (err) {
-      setError(err.message || "Không xóa được vai trò.");
-      setPendingDelete(null);
-    } finally {
-      setDeleting(false);
-    }
+  function openPage(next) {
+    setPage(next);
+    setNavOpen(false);
   }
 
   return (
@@ -175,7 +86,7 @@ export default function App() {
             <Icon name="fa-shield-halved" />
           </span>
           <div>
-            <strong>Role Admin</strong>
+            <strong>Admin</strong>
             <small>minhhieudev</small>
           </div>
           <button
@@ -190,176 +101,45 @@ export default function App() {
 
         <p className="nav-label">Điều hướng</p>
         <nav className="nav">
-          <button type="button" className="nav-item is-active" onClick={() => setNavOpen(false)}>
+          <button
+            type="button"
+            className={page === "roles" ? "nav-item is-active" : "nav-item"}
+            aria-current={page === "roles" ? "page" : undefined}
+            onClick={() => openPage("roles")}
+          >
             <Icon name="fa-user-shield" />
             <span>Vai trò</span>
-            <em>{roles.length}</em>
+            <em>{roleCount}</em>
+          </button>
+          <button
+            type="button"
+            className={page === "users" ? "nav-item is-active" : "nav-item"}
+            aria-current={page === "users" ? "page" : undefined}
+            onClick={() => openPage("users")}
+          >
+            <Icon name="fa-users" />
+            <span>Người dùng</span>
+            <em>{userCount}</em>
           </button>
         </nav>
 
-        <div className="sidebar-foot">
-          <Icon name="fa-link" />
-          <span>api.minhhieudev.id.vn</span>
+        <div className="sidebar-user">
+          <strong>{session.user.fullName}</strong>
+          <small>
+            @{session.user.username} · {session.user.roleName}
+          </small>
+          <button type="button" className="nav-item" onClick={logout}>
+            <Icon name="fa-right-from-bracket" />
+            <span>Đăng xuất</span>
+          </button>
         </div>
       </aside>
 
-      <div className="workspace">
-        <header className="topbar">
-          <button
-            type="button"
-            className="icon-btn menu-btn"
-            onClick={() => setNavOpen(true)}
-            aria-label="Mở menu"
-          >
-            <Icon name="fa-bars" />
-          </button>
-          <div className="titles">
-            <p className="eyebrow">Quản trị hệ thống</p>
-            <h1>Vai trò</h1>
-          </div>
-          <label className="search">
-            <Icon name="fa-magnifying-glass" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Tìm theo tên hoặc mô tả"
-              aria-label="Tìm vai trò"
-            />
-            {query ? (
-              <button type="button" className="search-clear" onClick={() => setQuery("")} aria-label="Xóa từ khóa">
-                <Icon name="fa-xmark" />
-              </button>
-            ) : null}
-          </label>
-          <button type="button" className="ghost" onClick={loadRoles} disabled={loading}>
-            <Icon name={loading ? "fa-spinner fa-spin" : "fa-rotate"} />
-            Làm mới
-          </button>
-          <button type="button" className="primary" onClick={openCreate}>
-            <Icon name="fa-plus" />
-            Tạo vai trò
-          </button>
-        </header>
-
-        <section className="metrics" aria-label="Tóm tắt">
-          <article className="metric">
-            <span className="metric-icon">
-              <Icon name="fa-users" />
-            </span>
-            <div>
-              <p>Tổng vai trò</p>
-              <strong>{loading && roles.length === 0 ? "—" : roles.length}</strong>
-            </div>
-          </article>
-          <article className="metric">
-            <span className="metric-icon">
-              <Icon name="fa-file-lines" />
-            </span>
-            <div>
-              <p>Có mô tả</p>
-              <strong>{loading && roles.length === 0 ? "—" : described}</strong>
-            </div>
-          </article>
-          <article className="metric">
-            <span className="metric-icon">
-              <Icon name="fa-filter" />
-            </span>
-            <div>
-              <p>Đang hiển thị</p>
-              <strong>{loading && roles.length === 0 ? "—" : filtered.length}</strong>
-            </div>
-          </article>
-        </section>
-
-        {error ? (
-          <div className="banner is-error" role="alert">
-            <Icon name="fa-triangle-exclamation" />
-            <span>{error}</span>
-            <button type="button" className="text-btn" onClick={loadRoles}>
-              Thử lại
-            </button>
-          </div>
-        ) : null}
-
-        <section className="panel">
-          <div className="panel-head">
-            <div>
-              <h2>Danh sách</h2>
-              <p>Sắp xếp theo lần cập nhật gần nhất.</p>
-            </div>
-          </div>
-          <RoleTable
-            roles={filtered}
-            loading={loading}
-            failed={Boolean(error)}
-            editingId={editingId}
-            query={query.trim()}
-            onEdit={startEdit}
-            onDelete={setPendingDelete}
-            onCreate={openCreate}
-            onClearQuery={() => setQuery("")}
-          />
-        </section>
-      </div>
-
-      {notice ? (
-        <div className="toast" role="status">
-          <Icon name="fa-circle-check" />
-          <span>{notice}</span>
-        </div>
-      ) : null}
-
-      {formOpen ? (
-        <div className="overlay" onClick={closeForm}>
-          <div
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="role-form-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <RoleForm
-              form={form}
-              editingId={editingId}
-              saving={saving}
-              error={formError}
-              onChange={setForm}
-              onSubmit={handleSubmit}
-              onCancel={closeForm}
-            />
-          </div>
-        </div>
-      ) : null}
-
-      {pendingDelete ? (
-        <div className="overlay" onClick={() => !deleting && setPendingDelete(null)}>
-          <div
-            className="modal modal-confirm"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="delete-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <span className="danger-mark">
-              <Icon name="fa-trash" />
-            </span>
-            <h3 id="delete-title">Xóa vai trò này?</h3>
-            <p>
-              <strong>{pendingDelete.name}</strong> sẽ bị xóa và không thể hoàn tác.
-            </p>
-            <div className="actions">
-              <button type="button" className="ghost" onClick={() => setPendingDelete(null)} disabled={deleting}>
-                <Icon name="fa-arrow-left" />
-                Giữ lại
-              </button>
-              <button type="button" className="danger" onClick={confirmDelete} disabled={deleting}>
-                <Icon name={deleting ? "fa-spinner fa-spin" : "fa-trash"} />
-                {deleting ? "Đang xóa…" : "Xóa vai trò"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {page === "users" ? (
+        <UsersPage onCount={setUserTotal} onOpenRoles={openRoles} onOpenNav={() => setNavOpen(true)} />
+      ) : (
+        <RolesPage onCount={setRoleTotal} onOpenNav={() => setNavOpen(true)} />
+      )}
     </div>
   );
 }

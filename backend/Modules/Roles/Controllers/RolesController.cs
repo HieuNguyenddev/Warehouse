@@ -1,9 +1,12 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RoleManagement.Api.Modules.Auth;
 using RoleManagement.Api.Modules.Roles.DTOs;
 using RoleManagement.Api.Modules.Roles.Services;
 
 namespace RoleManagement.Api.Modules.Roles.Controllers;
 
+[Authorize(Roles = AuthConstants.AdminRole)]
 [ApiController]
 [Route("api/[controller]")]
 public class RolesController : ControllerBase
@@ -81,6 +84,8 @@ public class RolesController : ControllerBase
         {
             RoleError.NotFound => NotFound(message),
             RoleError.DuplicateName => Conflict(message),
+            RoleError.InUse => Conflict(message),
+            RoleError.Protected => Conflict(message),
             _ => StatusCode(StatusCodes.Status500InternalServerError, message),
         };
     }

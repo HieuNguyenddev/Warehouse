@@ -1,16 +1,21 @@
+using Microsoft.EntityFrameworkCore;
+using RoleManagement.Api.Modules.Auth;
 using RoleManagement.Api.Modules.Roles.DTOs;
 using RoleManagement.Api.Modules.Roles.Entities;
 using RoleManagement.Api.Modules.Roles.Repositories;
+using RoleManagement.Api.Modules.Users.Repositories;
 
 namespace RoleManagement.Api.Modules.Roles.Services;
 
 public class RoleService : IRoleService
 {
     private readonly IRoleRepository _roles;
+    private readonly IUserRepository _users;
 
-    public RoleService(IRoleRepository roles)
+    public RoleService(IRoleRepository roles, IUserRepository users)
     {
         _roles = roles;
+        _users = users;
     }
 
     public async Task<IReadOnlyList<RoleResponse>> ListAsync(CancellationToken cancellationToken = default)
@@ -62,6 +67,11 @@ public class RoleService : IRoleService
         }
 
         var name = request.Name.Trim();
+        if (role.Name == AuthConstants.AdminRole && name != AuthConstants.AdminRole)
+        {
+            return RoleResult.Protected("Không đổi tên được vai trò Admin vì vai trò này dùng để phân quyền.");
+        }
+
         if (await _roles.NameExistsAsync(name, id, cancellationToken))
         {
             return RoleResult.Duplicate("Tên vai trò đã được sử dụng.");
@@ -83,7 +93,25 @@ public class RoleService : IRoleService
             return RoleResult.NotFound($"Không tìm thấy vai trò có ID = {id}.");
         }
 
-        await _roles.DeleteAsync(role, cancellationToken);
+        if (role.Name == AuthConstants.AdminRole)
+        {
+            return RoleResult.Protected("Không xóa được vai trò Admin.");
+        }
+
+        if (await _users.AnyInRoleAsync(id, cancellationToken))
+        {
+            return RoleResult.InUse("Không xóa được vai trò vì vẫn còn người dùng thuộc vai trò này.");
+        }
+
+        try
+        {
+            await _roles.DeleteAsync(role, cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            return RoleResult.InUse("Không xóa được vai trò vì vẫn còn người dùng thuộc vai trò này.");
+        }
+
         return RoleResult.Ok();
     }
 

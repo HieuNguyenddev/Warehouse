@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using RoleManagement.Api.Modules.Roles.Entities;
+using RoleManagement.Api.Modules.Users.Entities;
 
 namespace RoleManagement.Api.Data;
 
@@ -11,6 +12,8 @@ public class AppDbContext : DbContext
     }
 
     public DbSet<Role> Roles => Set<Role>();
+
+    public DbSet<User> Users => Set<User>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -34,6 +37,36 @@ public class AppDbContext : DbContext
 
             entity.Property(role => role.CreatedAt)
                 .IsRequired();
+        });
+
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.ToTable("Users");
+
+            entity.HasKey(user => user.Id);
+
+            entity.Property(user => user.Username)
+                .HasMaxLength(50)
+                .IsRequired();
+
+            entity.HasIndex(user => user.Username)
+                .IsUnique();
+
+            entity.Property(user => user.FullName)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.Property(user => user.PasswordHash)
+                .HasMaxLength(500)
+                .IsRequired();
+
+            entity.Property(user => user.CreatedAt)
+                .IsRequired();
+
+            entity.HasOne(user => user.Role)
+                .WithMany()
+                .HasForeignKey(user => user.RoleId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }
