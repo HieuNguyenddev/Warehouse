@@ -583,24 +583,26 @@ Chạy khi Nginx hiện tại vẫn phục vụ HTTP, trước khi bật khối 
 ```bash
 cd /root/Documents/port/backend/RoleManagement.Api
 mkdir -p certbot/www
-sudo certbot certonly --webroot --non-interactive \
+sudo certbot certonly --webroot --non-interactive --expand \
+  --cert-name api.minhhieudev.id.vn \
   -w /root/Documents/port/backend/RoleManagement.Api/certbot/www \
+  -d api.minhhieudev.id.vn \
   -d admin.minhhieudev.id.vn \
   --email hieugm22@gmail.com \
   --agree-tos \
   --no-eff-email
 ```
 
+- `--expand` thêm `admin.minhhieudev.id.vn` vào chứng chỉ đã cấp cho API. Chrome hết báo `NET::ERR_CERT_COMMON_NAME_INVALID`.
+- `--cert-name api.minhhieudev.id.vn` sửa đúng bộ file Nginx đang dùng, không tạo bộ chứng chỉ thứ hai.
 - `--webroot` ghi file kiểm tra vào `certbot/www`. Nginx đang chạy trả file đó ở `/.well-known/acme-challenge/`.
-- `-d admin.minhhieudev.id.vn` là tên trên chứng chỉ. Khác với chứng chỉ của `api.minhhieudev.id.vn`.
-- `--non-interactive` không hỏi trên terminal, nên GitHub Actions chạy được lệnh này.
 
-File sau khi thành công:
+Lệnh này mở rộng chứng chỉ đang có của `api.minhhieudev.id.vn` để cùng chứa tên `admin.minhhieudev.id.vn`. Không tạo thư mục chứng chỉ riêng. File vẫn là:
 
-- `/etc/letsencrypt/live/admin.minhhieudev.id.vn/fullchain.pem`
-- `/etc/letsencrypt/live/admin.minhhieudev.id.vn/privkey.pem`
+- `/etc/letsencrypt/live/api.minhhieudev.id.vn/fullchain.pem`
+- `/etc/letsencrypt/live/api.minhhieudev.id.vn/privkey.pem`
 
-Workflow Deploy tự chạy Certbot nếu hai file này chưa có, rồi mới `docker compose up`.
+Nginx của admin và API cùng dùng hai file này. Workflow Deploy chạy `certbot --expand` trước khi tạo lại container.
 
 ### 11.2. Nginx
 

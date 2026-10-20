@@ -25,14 +25,14 @@ jobs:
             git -C "$ROOT" pull --ff-only
             test -f "$ROOT/frontend/Dockerfile"
             mkdir -p certbot/www
-            if [ ! -f /etc/letsencrypt/live/admin.minhhieudev.id.vn/fullchain.pem ]; then
-              certbot certonly --webroot --non-interactive \
-                -w "$ROOT/backend/RoleManagement.Api/certbot/www" \
-                -d admin.minhhieudev.id.vn \
-                --email hieugm22@gmail.com \
-                --agree-tos \
-                --no-eff-email
-            fi
+            certbot certonly --webroot --non-interactive --keep-until-expiring --expand \
+              --cert-name api.minhhieudev.id.vn \
+              -w "$ROOT/backend/RoleManagement.Api/certbot/www" \
+              -d api.minhhieudev.id.vn \
+              -d admin.minhhieudev.id.vn \
+              --email hieugm22@gmail.com \
+              --agree-tos \
+              --no-eff-email
             docker compose up -d --build
             docker compose exec -T nginx nginx -t
             docker compose exec -T nginx nginx -s reload
