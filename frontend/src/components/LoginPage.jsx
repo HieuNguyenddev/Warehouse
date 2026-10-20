@@ -4,7 +4,7 @@ import { saveSession } from "../api/session";
 import Icon from "./Icon.jsx";
 import PasswordField from "./PasswordField.jsx";
 
-export default function LoginPage({ onSuccess }) {
+export default function LoginPage({ onSuccess, theme, onToggleTheme }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -41,6 +41,15 @@ export default function LoginPage({ onSuccess }) {
 
   return (
     <div className="login-screen">
+      <button
+        type="button"
+        className="icon-btn login-theme"
+        onClick={onToggleTheme}
+        aria-label={theme === "dark" ? "Chế độ sáng" : "Chế độ tối"}
+        title={theme === "dark" ? "Chế độ sáng" : "Chế độ tối"}
+      >
+        <Icon name={theme === "dark" ? "fa-sun" : "fa-moon"} />
+      </button>
       <form className="login-card" onSubmit={handleSubmit}>
         <div className="login-brand">
           <span className="brand-mark">

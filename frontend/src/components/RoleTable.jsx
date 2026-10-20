@@ -1,3 +1,5 @@
+import { useCallback, useState } from "react";
+import DetailDialog from "./DetailDialog.jsx";
 import Icon from "./Icon.jsx";
 
 function formatDate(value) {
@@ -54,6 +56,9 @@ export default function RoleTable({
   onCreate,
   onClearQuery,
 }) {
+  const [selected, setSelected] = useState(null);
+  const closeDetail = useCallback(() => setSelected(null), []);
+
   if (loading && roles.length === 0 && !query) {
     return <Skeleton />;
   }
@@ -100,7 +105,11 @@ export default function RoleTable({
     <>
     <ul className="role-cards">
       {roles.map((role) => (
-        <li key={role.id} className={editingId === role.id ? "role-card is-editing" : "role-card"}>
+        <li
+          key={role.id}
+          className={editingId === role.id ? "role-card is-editing is-clickable" : "role-card is-clickable"}
+          onClick={() => setSelected(role)}
+        >
           <div className="role-id">
             <span className="avatar">{initials(role.name)}</span>
             <div>
@@ -108,20 +117,12 @@ export default function RoleTable({
               <span className="meta">#{role.id}</span>
             </div>
           </div>
-          <p>{role.description || <span className="muted">Chưa có mô tả</span>}</p>
+          <p className="clamp">{role.description || <span className="muted">Chưa có mô tả</span>}</p>
           <div className="card-meta">
             <span><Icon name="fa-calendar-plus" /> {formatDate(role.createdAt)}</span>
             <span>
               <Icon name="fa-clock-rotate-left" /> {role.updatedAt ? formatDate(role.updatedAt) : "Chưa cập nhật"}
             </span>
-          </div>
-          <div className="row-actions">
-            <button type="button" className="ghost compact" onClick={() => onEdit(role)}>
-              <Icon name="fa-pen" /> Sửa
-            </button>
-            <button type="button" className="danger compact" onClick={() => onDelete(role)}>
-              <Icon name="fa-trash" /> Xóa
-            </button>
           </div>
         </li>
       ))}
@@ -134,12 +135,15 @@ export default function RoleTable({
             <th>Mô tả</th>
             <th>Tạo lúc</th>
             <th>Cập nhật</th>
-            <th className="col-actions">Thao tác</th>
           </tr>
         </thead>
         <tbody>
           {roles.map((role) => (
-            <tr key={role.id} className={editingId === role.id ? "is-editing" : undefined}>
+            <tr
+              key={role.id}
+              className={editingId === role.id ? "is-editing is-clickable" : "is-clickable"}
+              onClick={() => setSelected(role)}
+            >
               <td>
                 <div className="role-id">
                   <span className="avatar">{initials(role.name)}</span>
@@ -149,7 +153,13 @@ export default function RoleTable({
                   </div>
                 </div>
               </td>
-              <td className="desc">{role.description || <span className="muted">Chưa có mô tả</span>}</td>
+              <td className="desc">
+                {role.description ? (
+                  <span className="clamp">{role.description}</span>
+                ) : (
+                  <span className="muted">Chưa có mô tả</span>
+                )}
+              </td>
               <td className="when">
                 <Icon name="fa-calendar-plus" />
                 {formatDate(role.createdAt)}
@@ -164,25 +174,45 @@ export default function RoleTable({
                   <span className="muted">Chưa cập nhật</span>
                 )}
               </td>
-              <td className="row-actions">
-                <button type="button" className="icon-btn" title="Sửa" onClick={() => onEdit(role)} aria-label={`Sửa ${role.name}`}>
-                  <Icon name="fa-pen" />
-                </button>
-                <button
-                  type="button"
-                  className="icon-btn is-danger"
-                  title="Xóa"
-                  onClick={() => onDelete(role)}
-                  aria-label={`Xóa ${role.name}`}
-                >
-                  <Icon name="fa-trash" />
-                </button>
-              </td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
+    {selected ? (
+      <DetailDialog
+        title={selected.name}
+        subtitle={`Mã #${selected.id}`}
+        initials={initials(selected.name)}
+        onClose={closeDetail}
+        fields={[
+          { label: "Tên vai trò", value: selected.name },
+          { label: "Mã", value: `#${selected.id}` },
+          { label: "Tạo lúc", value: formatDate(selected.createdAt) },
+          { label: "Cập nhật", value: selected.updatedAt ? formatDate(selected.updatedAt) : "Chưa cập nhật" },
+          { label: "Mô tả", value: selected.description || "Chưa có mô tả", wide: true },
+        ]}
+        actions={[
+          {
+            label: "Sửa",
+            icon: "fa-pen",
+            onClick: () => {
+              closeDetail();
+              onEdit(selected);
+            },
+          },
+          {
+            label: "Xóa",
+            icon: "fa-trash",
+            tone: "danger",
+            onClick: () => {
+              closeDetail();
+              onDelete(selected);
+            },
+          },
+        ]}
+      />
+    ) : null}
     </>
   );
 }

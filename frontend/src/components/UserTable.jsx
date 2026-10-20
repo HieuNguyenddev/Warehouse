@@ -1,3 +1,5 @@
+import { useCallback, useState } from "react";
+import DetailDialog from "./DetailDialog.jsx";
 import Icon from "./Icon.jsx";
 
 function formatDate(value) {
@@ -56,6 +58,9 @@ export default function UserTable({
   onCreate,
   onClearQuery,
 }) {
+  const [selected, setSelected] = useState(null);
+  const closeDetail = useCallback(() => setSelected(null), []);
+
   if (loading && users.length === 0 && !query) {
     return <Skeleton />;
   }
@@ -102,7 +107,11 @@ export default function UserTable({
         {users.map((user) => {
           const active = editingId === user.id || passwordId === user.id;
           return (
-            <li key={user.id} className={active ? "role-card is-editing" : "role-card"}>
+            <li
+              key={user.id}
+              className={active ? "role-card is-editing is-clickable" : "role-card is-clickable"}
+              onClick={() => setSelected(user)}
+            >
               <div className="role-id">
                 <span className="avatar">{initials(user.fullName || user.username)}</span>
                 <div>
@@ -121,17 +130,6 @@ export default function UserTable({
                   <Icon name="fa-clock-rotate-left" /> {user.updatedAt ? formatDate(user.updatedAt) : "Chưa cập nhật"}
                 </span>
               </div>
-              <div className="row-actions">
-                <button type="button" className="ghost compact" onClick={() => onEdit(user)}>
-                  <Icon name="fa-pen" /> Sửa
-                </button>
-                <button type="button" className="ghost compact" onClick={() => onPassword(user)}>
-                  <Icon name="fa-key" /> Mật khẩu
-                </button>
-                <button type="button" className="danger compact" onClick={() => onDelete(user)}>
-                  <Icon name="fa-trash" /> Xóa
-                </button>
-              </div>
             </li>
           );
         })}
@@ -144,14 +142,17 @@ export default function UserTable({
               <th>Vai trò</th>
               <th>Tạo lúc</th>
               <th>Cập nhật</th>
-              <th className="col-actions">Thao tác</th>
             </tr>
           </thead>
           <tbody>
             {users.map((user) => {
               const active = editingId === user.id || passwordId === user.id;
               return (
-                <tr key={user.id} className={active ? "is-editing" : undefined}>
+                <tr
+                  key={user.id}
+                  className={active ? "is-editing is-clickable" : "is-clickable"}
+                  onClick={() => setSelected(user)}
+                >
                   <td>
                     <div className="role-id">
                       <span className="avatar">{initials(user.fullName || user.username)}</span>
@@ -178,41 +179,56 @@ export default function UserTable({
                       <span className="muted">Chưa cập nhật</span>
                     )}
                   </td>
-                  <td className="row-actions">
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      title="Sửa"
-                      onClick={() => onEdit(user)}
-                      aria-label={`Sửa ${user.username}`}
-                    >
-                      <Icon name="fa-pen" />
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      title="Đổi mật khẩu"
-                      onClick={() => onPassword(user)}
-                      aria-label={`Đổi mật khẩu ${user.username}`}
-                    >
-                      <Icon name="fa-key" />
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-btn is-danger"
-                      title="Xóa"
-                      onClick={() => onDelete(user)}
-                      aria-label={`Xóa ${user.username}`}
-                    >
-                      <Icon name="fa-trash" />
-                    </button>
-                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+      {selected ? (
+        <DetailDialog
+          title={selected.fullName}
+          subtitle={`@${selected.username}`}
+          initials={initials(selected.fullName || selected.username)}
+          onClose={closeDetail}
+          fields={[
+            { label: "Họ tên", value: selected.fullName || "—" },
+            { label: "Tên đăng nhập", value: selected.username || "—" },
+            { label: "Vai trò", value: selected.roleName || "Chưa có vai trò" },
+            { label: "Mã", value: `#${selected.id}` },
+            { label: "Tạo lúc", value: formatDate(selected.createdAt) },
+            { label: "Cập nhật", value: selected.updatedAt ? formatDate(selected.updatedAt) : "Chưa cập nhật" },
+          ]}
+          actions={[
+            {
+              label: "Sửa",
+              icon: "fa-pen",
+              onClick: () => {
+                closeDetail();
+                onEdit(selected);
+              },
+            },
+            {
+              label: "Đổi mật khẩu",
+              icon: "fa-key",
+              tone: "key",
+              onClick: () => {
+                closeDetail();
+                onPassword(selected);
+              },
+            },
+            {
+              label: "Xóa",
+              icon: "fa-trash",
+              tone: "danger",
+              onClick: () => {
+                closeDetail();
+                onDelete(selected);
+              },
+            },
+          ]}
+        />
+      ) : null}
     </>
   );
 }

@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createRole, deleteRole, getRoles, updateRole } from "../api/roles";
 import Icon from "./Icon.jsx";
+import Pager, { slicePage } from "./Pager.jsx";
 import RoleForm from "./RoleForm.jsx";
 import RoleTable from "./RoleTable.jsx";
 
 const emptyForm = { name: "", description: "" };
 
-export default function RolesPage({ onCount, onOpenNav }) {
+export default function RolesPage({ onCount }) {
   const [roles, setRoles] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -83,6 +85,11 @@ export default function RolesPage({ onCount, onOpenNav }) {
     });
   }, [roles, query]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
+
+  const paged = slicePage(filtered, page);
   const described = roles.filter((role) => role.description).length;
 
   function resetForm() {
@@ -168,11 +175,8 @@ export default function RolesPage({ onCount, onOpenNav }) {
   return (
     <div className="workspace">
       <header className="topbar">
-        <button type="button" className="icon-btn menu-btn" onClick={onOpenNav} aria-label="Mở menu">
-          <Icon name="fa-bars" />
-        </button>
         <div className="titles">
-          <p className="eyebrow">Quản trị hệ thống</p>
+          <p className="crumb">Trang chủ / <span>Vai trò</span></p>
           <h1>Vai trò</h1>
         </div>
         <label className="search">
@@ -189,14 +193,16 @@ export default function RolesPage({ onCount, onOpenNav }) {
             </button>
           ) : null}
         </label>
-        <button type="button" className="ghost" onClick={loadRoles} disabled={loading}>
-          <Icon name={loading ? "fa-spinner fa-spin" : "fa-rotate"} />
-          Làm mới
-        </button>
-        <button type="button" className="primary" onClick={openCreate}>
-          <Icon name="fa-plus" />
-          Tạo vai trò
-        </button>
+        <div className="topbar-actions">
+          <button type="button" className="ghost" onClick={loadRoles} disabled={loading}>
+            <Icon name={loading ? "fa-spinner fa-spin" : "fa-rotate"} />
+            Làm mới
+          </button>
+          <button type="button" className="primary" onClick={openCreate}>
+            <Icon name="fa-plus" />
+            Tạo vai trò
+          </button>
+        </div>
       </header>
 
       <section className="metrics" aria-label="Tóm tắt">
@@ -243,11 +249,11 @@ export default function RolesPage({ onCount, onOpenNav }) {
         <div className="panel-head">
           <div>
             <h2>Danh sách</h2>
-            <p>Sắp xếp theo lần cập nhật gần nhất.</p>
+            <p>Bấm một dòng để xem đầy đủ. Sắp xếp theo lần cập nhật gần nhất.</p>
           </div>
         </div>
         <RoleTable
-          roles={filtered}
+          roles={paged.items}
           loading={loading}
           failed={Boolean(error)}
           editingId={editingId}
@@ -256,6 +262,13 @@ export default function RolesPage({ onCount, onOpenNav }) {
           onDelete={setPendingDelete}
           onCreate={openCreate}
           onClearQuery={() => setQuery("")}
+        />
+        <Pager
+          page={paged.current}
+          pageCount={paged.pageCount}
+          total={paged.total}
+          start={paged.start}
+          onPage={setPage}
         />
       </section>
 

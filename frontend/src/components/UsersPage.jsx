@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getRoles } from "../api/roles";
 import { changePassword, createUser, deleteUser, getUsers, updateUser } from "../api/users";
 import Icon from "./Icon.jsx";
+import Pager, { slicePage } from "./Pager.jsx";
 import PasswordForm from "./PasswordForm.jsx";
 import UserForm from "./UserForm.jsx";
 import UserTable from "./UserTable.jsx";
@@ -9,7 +10,7 @@ import UserTable from "./UserTable.jsx";
 const emptyForm = { username: "", fullName: "", password: "", roleId: "" };
 const emptyPassword = { currentPassword: "", newPassword: "", confirmPassword: "" };
 
-export default function UsersPage({ onCount, onOpenRoles, onOpenNav }) {
+export default function UsersPage({ onCount, onOpenRoles }) {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [form, setForm] = useState(emptyForm);
@@ -19,6 +20,7 @@ export default function UsersPage({ onCount, onOpenRoles, onOpenNav }) {
   const [passwordUser, setPasswordUser] = useState(null);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [changing, setChanging] = useState(false);
@@ -95,6 +97,11 @@ export default function UsersPage({ onCount, onOpenRoles, onOpenNav }) {
     });
   }, [users, query]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
+
+  const paged = slicePage(filtered, page);
   const assignedRoles = new Set(users.map((user) => user.roleId)).size;
 
   function resetForm() {
@@ -230,11 +237,8 @@ export default function UsersPage({ onCount, onOpenRoles, onOpenNav }) {
   return (
     <div className="workspace">
       <header className="topbar">
-        <button type="button" className="icon-btn menu-btn" onClick={onOpenNav} aria-label="Mở menu">
-          <Icon name="fa-bars" />
-        </button>
         <div className="titles">
-          <p className="eyebrow">Quản trị hệ thống</p>
+          <p className="crumb">Trang chủ / <span>Người dùng</span></p>
           <h1>Người dùng</h1>
         </div>
         <label className="search">
@@ -251,14 +255,16 @@ export default function UsersPage({ onCount, onOpenRoles, onOpenNav }) {
             </button>
           ) : null}
         </label>
-        <button type="button" className="ghost" onClick={loadUsers} disabled={loading}>
-          <Icon name={loading ? "fa-spinner fa-spin" : "fa-rotate"} />
-          Làm mới
-        </button>
-        <button type="button" className="primary" onClick={openCreate}>
-          <Icon name="fa-plus" />
-          Thêm người dùng
-        </button>
+        <div className="topbar-actions">
+          <button type="button" className="ghost" onClick={loadUsers} disabled={loading}>
+            <Icon name={loading ? "fa-spinner fa-spin" : "fa-rotate"} />
+            Làm mới
+          </button>
+          <button type="button" className="primary" onClick={openCreate}>
+            <Icon name="fa-plus" />
+            Thêm người dùng
+          </button>
+        </div>
       </header>
 
       <section className="metrics" aria-label="Tóm tắt">
@@ -305,11 +311,11 @@ export default function UsersPage({ onCount, onOpenRoles, onOpenNav }) {
         <div className="panel-head">
           <div>
             <h2>Danh sách</h2>
-            <p>Mỗi người dùng thuộc một vai trò. Mật khẩu không hiện trên danh sách.</p>
+            <p>Bấm một dòng để xem đầy đủ. Mật khẩu không hiện trên danh sách.</p>
           </div>
         </div>
         <UserTable
-          users={filtered}
+          users={paged.items}
           loading={loading}
           failed={Boolean(error)}
           editingId={editingId}
@@ -320,6 +326,13 @@ export default function UsersPage({ onCount, onOpenRoles, onOpenNav }) {
           onDelete={setPendingDelete}
           onCreate={openCreate}
           onClearQuery={() => setQuery("")}
+        />
+        <Pager
+          page={paged.current}
+          pageCount={paged.pageCount}
+          total={paged.total}
+          start={paged.start}
+          onPage={setPage}
         />
       </section>
 
