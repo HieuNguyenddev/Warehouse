@@ -1,6 +1,6 @@
 # Role Management API
 
-API ASP.NET Core (.NET 10) và PostgreSQL 16, chạy bằng Docker Compose trong `backend/RoleManagement.Api`. PostgreSQL phù hợp máy 2 GB: image `postgres:16-alpine` khởi động với vài chục MB RAM, không có mức sàn 2 GB như SQL Server.
+API ASP.NET Core (.NET 10), PostgreSQL 16 và Nginx reverse proxy, chạy bằng Docker Compose trong `backend/RoleManagement.Api`. Nginx lắng nghe cổng `80` và chuyển request tới API nội bộ cổng `8080`. PostgreSQL phù hợp máy 2 GB: image `postgres:16-alpine` khởi động với vài chục MB RAM, không có mức sàn 2 GB như SQL Server.
 
 Máy chủ là **Ubuntu 24.04** trên VMware Fusion, card mạng **Bridged Networking → Autodetect**. Các lệnh dưới đây chạy bằng user `root`.
 
@@ -9,11 +9,12 @@ Máy chủ là **Ubuntu 24.04** trên VMware Fusion, card mạng **Bridged Netwo
 | IP máy ảo | `192.168.1.5` |
 | SSH trong mạng nhà | `root@192.168.1.5` |
 | IP public của router | lấy bằng `curl -4 ifconfig.me` |
+| Tên miền gốc | `minhhieudev.id.vn` |
 | Tên miền API | `api.minhhieudev.id.vn` |
 | Thư mục project | `/root/Documents/port` |
-| API trong mạng nhà | `http://192.168.1.5:8080` |
+| API qua Nginx | `http://192.168.1.5` hoặc `http://api.minhhieudev.id.vn` |
 | .NET | 10, image `aspnet:10.0`. Tiến trình API bị giới hạn khoảng 256 MB |
-| RAM VPS | 2 GB. API trần 512 MB, PostgreSQL trần 512 MB, `shared_buffers` 128 MB |
+| RAM VPS | 2 GB. API 512 MB, PostgreSQL 512 MB, Nginx 64 MB |
 
 ## 1. Kiểm tra Ubuntu 24.04
 
@@ -113,11 +114,11 @@ getent hosts mcr.microsoft.com
 
 ## 3. Firewall
 
-Ubuntu 24.04 dùng `ufw`. Mở SSH và API trước khi bật firewall.
+Ubuntu 24.04 dùng `ufw`. Mở SSH, HTTP (Nginx) và PostgreSQL trước khi bật firewall.
 
 ```bash
 sudo ufw allow OpenSSH
-sudo ufw allow 8080/tcp
+sudo ufw allow 80/tcp
 sudo ufw allow 5432/tcp
 sudo ufw --force enable
 sudo ufw status
@@ -125,7 +126,7 @@ ss -lnt | grep 22
 ```
 
 - `sudo ufw allow OpenSSH` cho phép gói tới dịch vụ SSH, thường là cổng TCP `22`. Phải mở cổng này trước khi bật firewall, nếu không phiên SSH hiện tại và GitHub Actions đều bị chặn.
-- `sudo ufw allow 8080/tcp` cho phép vào cổng API.
+- `sudo ufw allow 80/tcp` cho phép vào Nginx. Nginx proxy sang API trong mạng Docker, không mở cổng `8080` ra ngoài.
 - `sudo ufw allow 5432/tcp` cho phép DBeaver trên mạng nhà vào PostgreSQL. Không chuyển tiếp cổng `5432` trên router ra internet.
 - `sudo ufw --force enable` bật firewall và ghi luật để còn hiệu lực sau khi reboot. `--force` không hỏi xác nhận.
 - `sudo ufw status` in các luật đang hoạt động để đối chiếu ba cổng trên.
@@ -179,9 +180,9 @@ docker compose up -d --build
 - `cd "$HOME/Documents/port"` chuyển thư mục làm việc hiện tại vào đó. Các lệnh tiếp theo đọc và ghi file tại đây.
 - `git clone https://github.com/HieuNguyenddev/testCICD.git .` tải repository về thư mục hiện tại. Dấu `.` ở cuối nghĩa là bỏ nội dung vào thư mục đang đứng, không tạo thêm thư mục `testCICD`.
 - `cd backend/RoleManagement.Api` vào thư mục có `Dockerfile` và `docker-compose.yml`.
-- `docker compose up -d --build` build image API rồi chạy API và PostgreSQL. `-d` chạy nền, terminal được trả lại. `--build` build lại image khi Dockerfile hoặc mã nguồn đổi. API chỉ chạy sau khi PostgreSQL healthy, rồi tự tạo bảng.
+- `docker compose up -d --build` build image API rồi chạy API, PostgreSQL và Nginx. `-d` chạy nền, terminal được trả lại. `--build` build lại image khi Dockerfile hoặc mã nguồn đổi. API chỉ chạy sau khi PostgreSQL healthy, rồi tự tạo bảng. Nginx đọc `nginx/default.conf` và proxy cổng `80` sang `api:8080`.
 
-Đường dẫn đầy đủ là `/root/Documents/port`. API lắng nghe cổng `8080`. PostgreSQL lắng nghe cổng `5432`, database tên `RoleManagementDb`.
+Đường dẫn đầy đủ là `/root/Documents/port`. Nginx lắng nghe cổng `80`. API chỉ lắng nghe trong mạng Docker ở cổng `8080`. PostgreSQL lắng nghe cổng `5432`, database tên `RoleManagementDb`.
 
 Kiểm tra container:
 
@@ -189,9 +190,9 @@ Kiểm tra container:
 docker compose ps
 ```
 
-- `docker compose ps` liệt kê container của project này. `api` và `postgres` phải `running`. `postgres` phải `healthy`.
+- `docker compose ps` liệt kê container của project này. `api`, `nginx` và `postgres` phải `running`. `postgres` phải `healthy`.
 
-Nếu log còn `dependency sqlserver` hoặc container SQLite cũ, xóa stack cũ rồi chạy bản PostgreSQL:
+Nếu còn stack cũ (SQL Server, SQLite, hoặc API map cổng `8080` ra host), xóa rồi chạy lại:
 
 ```bash
 cd /root/Documents/port
@@ -202,7 +203,7 @@ docker compose up -d --build
 docker compose ps
 ```
 
-`docker compose ps` phải hiện `api` là `running` và `postgres` là `healthy`.
+`docker compose ps` phải hiện `api` và `nginx` là `running`, `postgres` là `healthy`.
 
 Cập nhật tay khi cần:
 
@@ -262,7 +263,7 @@ ssh -p 22 -i ~/.ssh/gha_deploy root@IP_PUBLIC
 
 ## 7. Test bằng Postman
 
-Trong mạng nhà, base URL là `http://192.168.1.5:8080`. Gọi ngay trên máy ảo thì dùng `http://localhost:8080`. Mỗi request có body chọn tab **Body → raw → JSON**.
+Trong mạng nhà, base URL là `http://192.168.1.5`. Gọi ngay trên máy ảo thì dùng `http://localhost`. Qua tên miền dùng `http://api.minhhieudev.id.vn`. Không cần cổng `8080` vì Nginx nhận cổng `80`. Mỗi request có body chọn tab **Body → raw → JSON**.
 
 | Thao tác | Request | Kết quả đúng |
 | --- | --- | --- |
@@ -314,102 +315,102 @@ PostgreSQL nhận kết nối mạng. DBeaver trên Mac nối thẳng tới máy
 
 Bảng dữ liệu tên `Roles`. Mở **RoleManagementDb → Schemas → public → Tables → Roles → View Data**. Gọi API thêm vai trò xong, bấm làm mới bảng để thấy dòng mới.
 
-## 9. Tên miền `api.minhhieudev.id.vn`
+## 9. Trỏ `103.183.120.48` vào `minhhieudev.id.vn` và `api.minhhieudev.id.vn`
 
-### 9.1. Cách trỏ host đúng
+DNS không mở website. Bản ghi A chỉ nói: tên miền này đi tới IPv4 nào. Muốn `http://minhhieudev.id.vn` và `http://api.minhhieudev.id.vn` tới máy `103.183.120.48`, tạo **hai** bản ghi A cùng Value.
 
-Không đổi bản ghi A sang IP nhà (`171.225.184.87`) nếu API đang chạy trên máy khác. `dig` của bạn đang trả `103.183.120.48`. Đó là IP máy mà tên miền đang gắn. Giữ value đó nếu Docker Compose chạy trên máy `103.183.120.48`.
+### 9.1. Tạo bản ghi A trên panel DNS
 
-Vào trang DNS của `minhhieudev.id.vn`:
+Đăng nhập nhà đăng ký tên miền (hoặc Cloudflare) → zone `minhhieudev.id.vn` → DNS → Add record. Tạo lần lượt:
 
-| Ô | Giá trị đúng | Giá trị sai |
-| --- | --- | --- |
-| Type | `A` | |
-| Host / Name | chỉ `api` | `api.minhhieudev.id.vn`, `@`, IP, hoặc để trống rồi ghi full tên |
-| Value / Points to | IP máy đang chạy Docker, ví dụ `103.183.120.48` | `192.168.1.5`, hoặc IP nhà `171.225.184.87` khi API không chạy ở nhà |
-| TTL | `300` | |
+| Mục đích | Type | Host / Name | Value | TTL | Tên đầy đủ sau khi lưu |
+| --- | --- | --- | --- | --- | --- |
+| Trang gốc | `A` | `@` (hoặc để trống) | `103.183.120.48` | `300` | `minhhieudev.id.vn` |
+| API | `A` | `api` | `103.183.120.48` | `300` | `api.minhhieudev.id.vn` |
 
-Host chỉ là nhãn `api`. Panel sẽ tạo tên đầy đủ `api.minhhieudev.id.vn`. Ghi full tên vào ô Host sẽ thành `api.minhhieudev.id.vn.minhhieudev.id.vn`.
+Giải thích từng ô:
 
-`VPS_HOST` trên GitHub chỉ điền IP, ví dụ `103.183.120.48`. Không điền `api.minhhieudev.id.vn`.
+- **Type `A`**: gắn tên với IPv4. Không dùng `CNAME` để trỏ root `@` sang IP.
+- **Host `@`**: tên gốc `minhhieudev.id.vn`. Một số panel ghi `root` hoặc để trống thay cho `@`.
+- **Host `api`**: chỉ gõ `api`. Panel tự ghép thành `api.minhhieudev.id.vn`. Không gõ `api.minhhieudev.id.vn` vào ô Host (sẽ thành tên lỗi `api.minhhieudev.id.vn.minhhieudev.id.vn`).
+- **Value `103.183.120.48`**: IP máy VPS đang chạy Docker / Nginx. Không ghi `http://`, không ghi cổng, không ghi `192.168.1.5`.
+- **TTL `300`**: cache khoảng 5 phút. Đổi IP xong đợi vài phút rồi kiểm tra lại.
 
-### 9.2. Kiểm tra DNS khớp máy deploy
+Nếu đã có bản ghi A `api` hoặc `@` với IP khác, **sửa Value** thành `103.183.120.48`, không tạo trùng Host.
 
-Trên **máy đang chạy** `docker compose`:
+`www` (tuỳ chọn): thêm bản ghi A Host `www` Value `103.183.120.48`, hoặc CNAME `www` → `minhhieudev.id.vn`.
+
+### 9.2. Kiểm tra DNS đã trỏ đúng
+
+Trên Mac, sau 1–5 phút:
+
+```bash
+dig +short minhhieudev.id.vn A
+dig +short api.minhhieudev.id.vn A
+dig @8.8.8.8 +short minhhieudev.id.vn A
+dig @8.8.8.8 +short api.minhhieudev.id.vn A
+```
+
+Cả bốn lệnh phải in `103.183.120.48`.
+
+Trên VPS `103.183.120.48`:
 
 ```bash
 curl -4 ifconfig.me
 ```
 
-Trên Mac:
+Phải ra đúng `103.183.120.48`. DNS khớp máy thì gọi tên miền mới tới đúng chỗ.
 
-```bash
-dig +short api.minhhieudev.id.vn A
-dig @8.8.8.8 +short api.minhhieudev.id.vn A
-```
+`VPS_HOST` trên GitHub vẫn chỉ điền `103.183.120.48`, không điền tên miền.
 
-Hai phía phải cùng một IP. Hiện tại `dig` ra `103.183.120.48` thì trên máy đó `curl -4 ifconfig.me` cũng phải ra `103.183.120.48`.
+### 9.3. Mở cổng và chạy Compose trên VPS `103.183.120.48`
 
-Nếu muốn API chạy trên máy ảo nhà thì phải deploy Compose trên máy nhà **và** đổi Value của bản ghi A sang IP public nhà sau khi `curl -4 ifconfig.me`. Không chỉ sửa DNS mà để container chạy chỗ khác.
-
-### 9.3. Mở cổng trên máy đang host API
-
-Trên máy `103.183.120.48` (hoặc máy mà bản ghi A đang trỏ):
+DNS xong chưa đủ. Trên máy `103.183.120.48`:
 
 ```bash
 sudo ufw allow OpenSSH
-sudo ufw allow 8080/tcp
+sudo ufw allow 80/tcp
 sudo ufw status
-cd /root/Documents/port/backend/RoleManagement.Api
+cd /root/Documents/port
+git pull
+cd backend/RoleManagement.Api
+docker compose up -d --build
 docker compose ps
 ```
 
-`api` phải `running`, `postgres` phải `healthy`.
+`api`, `nginx` phải `running`. `postgres` phải `healthy`.
 
-Nếu máy đó là VPS thuê sẵn thì không cần port forward router nhà. Nếu sau này chuyển API về máy ảo `192.168.1.5` thì mới forward WAN `22` và `8080` tới `192.168.1.5`.
+Nginx trong Compose đọc file `nginx/default.conf`:
+
+- `server_name api.minhhieudev.id.vn` → proxy sang `http://api:8080`
+- `server_name minhhieudev.id.vn` (và mặc định) → cùng proxy sang API
+
+Không cài Nginx bằng `apt` trên host. Container `nginx` đã làm việc đó. Nếu máy đó là VPS thuê sẵn thì không cần port forward router nhà. Nếu chạy trên máy ảo `192.168.1.5` thì forward WAN `22` và `80` tới `192.168.1.5`.
 
 ### 9.4. Thử API bằng tên miền
 
 Từ mạng ngoài (di động):
 
 ```bash
-curl -i http://api.minhhieudev.id.vn:8080/api/roles
+curl -i http://api.minhhieudev.id.vn/api/roles
+curl -i http://minhhieudev.id.vn/api/roles
+curl -i http://103.183.120.48/api/roles
 ```
 
-Postman base URL: `http://api.minhhieudev.id.vn:8080`.
+Postman base URL: `http://api.minhhieudev.id.vn` (không có `:8080`).
 
-- **200** hoặc `[]`: DNS và API khớp.
-- Timeout: firewall hoặc container chưa mở `8080` trên đúng máy mà DNS trỏ tới.
+- **200** hoặc `[]`: DNS, Nginx và API khớp.
+- Timeout: firewall chưa mở `80`, hoặc Compose chưa chạy trên đúng máy DNS trỏ tới.
 - Trang/máy lạ: Value của bản ghi A không phải máy đang chạy project này.
 
-### 9.5. (Tuỳ chọn) Nginx bỏ `:8080`
-
-Chỉ chạy trên máy mà `api.minhhieudev.id.vn` đang trỏ:
+Xem log Nginx khi proxy lỗi:
 
 ```bash
-sudo apt install -y nginx
-sudo ufw allow 80/tcp
-sudo tee /etc/nginx/sites-available/api <<'EOF'
-server {
-    listen 80;
-    server_name api.minhhieudev.id.vn;
-
-    location / {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-EOF
-sudo ln -sf /etc/nginx/sites-available/api /etc/nginx/sites-enabled/api
-sudo rm -f /etc/nginx/sites-enabled/default
-sudo nginx -t
-sudo systemctl enable --now nginx
-sudo systemctl reload nginx
+docker compose logs nginx --tail 50
+docker compose logs api --tail 50
 ```
 
-### 9.6. Secret GitHub Actions
+### 9.5. Secret GitHub Actions
 
 | Secret | Giá trị |
 | --- | --- |
