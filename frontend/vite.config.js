@@ -7,7 +7,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: process.env.VITE_DEV_PROXY || "http://api.minhhieudev.id.vn",
+        target: process.env.VITE_DEV_PROXY || "https://api.minhhieudev.id.vn",
         changeOrigin: true,
       },
     },

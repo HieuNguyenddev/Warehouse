@@ -240,8 +240,8 @@ Script trên VPS làm lần lượt:
 2. `git pull --ff-only` ở thư mục gốc repository, nên cả `frontend/` và `backend/` đều được cập nhật.
 3. Kiểm tra file `frontend/Dockerfile` tồn tại. Thiếu file thì dừng, không deploy bản cũ.
 4. `docker compose up -d --build` build image API và image admin, rồi tạo lại container.
-5. Nếu chưa có chứng chỉ `admin.minhhieudev.id.vn`, Certbot xin chứng chỉ Let's Encrypt qua cổng 80 khi Nginx cũ vẫn đang chạy.
-6. `docker compose up -d --build` build image API và image admin, rồi tạo lại container.
+5. `docker compose up -d --build` build image API và image admin, rồi tạo lại container. Nginx cổng 443 của `admin.minhhieudev.id.vn` chuyển vào container frontend.
+6. Certbot thêm tên admin vào chứng chỉ. Lỗi Certbot không chặn deploy nếu file chứng chỉ API đã có.
 7. `docker compose exec -T nginx nginx -t` rồi `nginx -s reload`. Admin là `https://admin.minhhieudev.id.vn`. API là `https://api.minhhieudev.id.vn`.
 
 | Secret trong `deploy.yml` | Ô trong workflow | Giá trị điền |
