@@ -20,16 +20,23 @@ jobs:
           command_timeout: 30m
           script: |
             set -euo pipefail
-            cd "${{ secrets.DEPLOY_PATH }}"
+            DEPLOY="${{ secrets.DEPLOY_PATH }}"
+            if [ ! -d "$DEPLOY" ]; then
+              DEPLOY="${DEPLOY%/RoleManagement.Api}"
+            fi
+            cd "$DEPLOY"
             ROOT="$(git rev-parse --show-toplevel)"
             git -C "$ROOT" pull --ff-only
+            cd "$ROOT/backend"
             test -f "$ROOT/frontend/Dockerfile"
+            test -f docker-compose.yml
+            test -f .env || { echo "Thiếu $ROOT/backend/.env. Tạo file với POSTGRES_PASSWORD trước khi deploy."; exit 1; }
             mkdir -p certbot/www
             docker compose up -d --build
             docker compose up -d --force-recreate --no-deps nginx
             certbot certonly --webroot --non-interactive --keep-until-expiring --expand \
               --cert-name api.minhhieudev.id.vn \
-              -w "$ROOT/backend/RoleManagement.Api/certbot/www" \
+              -w "$ROOT/backend/certbot/www" \
               -d api.minhhieudev.id.vn \
               -d admin.minhhieudev.id.vn \
               --email hieugm22@gmail.com \

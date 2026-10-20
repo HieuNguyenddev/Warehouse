@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using RoleManagement.Api.Models;
+using RoleManagement.Api.Modules.Roles.Entities;
 
 namespace RoleManagement.Api.Data;
 

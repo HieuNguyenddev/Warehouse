@@ -1,6 +1,6 @@
 # Role Management API
 
-API ASP.NET Core (.NET 10), admin React, PostgreSQL 16 và Nginx, chạy bằng Docker Compose trong `backend/RoleManagement.Api`. Mỗi lần đẩy lên nhánh `main`, GitHub Actions SSH vào VPS, `git pull` rồi `docker compose up -d --build` để build lại cả API và frontend. Nginx đưa `admin.minhhieudev.id.vn` tới container frontend và `api.minhhieudev.id.vn` tới API.
+API ASP.NET Core (.NET 10), admin React, PostgreSQL 16 và Nginx, chạy bằng Docker Compose trong `backend`. Mỗi lần đẩy lên nhánh `main`, GitHub Actions SSH vào VPS, `git pull` rồi `docker compose up -d --build` để build lại cả API và frontend. Nginx đưa `admin.minhhieudev.id.vn` tới container frontend và `api.minhhieudev.id.vn` tới API.
 
 Máy chủ là **Ubuntu 24.04** trên VMware Fusion, card mạng **Bridged Networking → Autodetect**. Các lệnh dưới đây chạy bằng user `root`.
 
@@ -173,14 +173,14 @@ ssh -i "$HOME/.ssh/gha_deploy" root@192.168.1.5
 mkdir -p "$HOME/Documents/port"
 cd "$HOME/Documents/port"
 git clone https://github.com/HieuNguyenddev/testCICD.git .
-cd backend/RoleManagement.Api
+cd backend
 docker compose up -d --build
 ```
 
 - `mkdir -p "$HOME/Documents/port"` tạo `/root/Documents/port`. `-p` tạo cả `Documents` nếu chưa có.
 - `cd "$HOME/Documents/port"` chuyển thư mục làm việc hiện tại vào đó. Các lệnh tiếp theo đọc và ghi file tại đây.
 - `git clone https://github.com/HieuNguyenddev/testCICD.git .` tải repository về thư mục hiện tại. Dấu `.` ở cuối nghĩa là bỏ nội dung vào thư mục đang đứng, không tạo thêm thư mục `testCICD`.
-- `cd backend/RoleManagement.Api` vào thư mục có `Dockerfile` và `docker-compose.yml`.
+- `cd backend` vào thư mục có `Dockerfile` và `docker-compose.yml`.
 - `docker compose up -d --build` build image API (`Dockerfile`) và image admin (`frontend/Dockerfile`), rồi chạy API, PostgreSQL, frontend và Nginx. `-d` chạy nền. `--build` build lại khi mã nguồn đổi. API chỉ chạy sau khi PostgreSQL healthy, rồi tự tạo bảng.
 
 Đường dẫn đầy đủ là `/root/Documents/port`. Nginx lắng nghe cổng `80` và `443`. Admin ở `https://admin.minhhieudev.id.vn`. API nội bộ cổng `8080`. PostgreSQL cổng `5432`, database `RoleManagementDb`. GitHub Actions làm đúng lệnh này sau mỗi lần push `main`.
@@ -198,7 +198,7 @@ Nếu còn stack cũ (SQL Server, SQLite, hoặc API map cổng `8080` ra host),
 ```bash
 cd /root/Documents/port
 git pull
-cd backend/RoleManagement.Api
+cd backend
 docker compose down
 docker compose up -d --build
 docker compose ps
@@ -211,13 +211,13 @@ Cập nhật tay khi cần:
 ```bash
 cd "$HOME/Documents/port"
 git pull
-cd backend/RoleManagement.Api
+cd backend
 docker compose up -d --build
 ```
 
 - `cd "$HOME/Documents/port"` về thư mục gốc của git.
 - `git pull` tải commit mới từ GitHub và trộn vào bản đang có trên máy.
-- `cd backend/RoleManagement.Api` trở lại thư mục Compose.
+- `cd backend` trở lại thư mục Compose.
 - `docker compose up -d --build` dựng lại image API và khởi động lại container theo file Compose mới.
 
 Xem log khi API trả lỗi:
@@ -236,11 +236,11 @@ Workflow `.github/workflows/deploy.yml` chạy khi có push lên nhánh `main`, 
 
 Script trên VPS làm lần lượt:
 
-1. `cd` vào `DEPLOY_PATH`, thư mục có `docker-compose.yml`.
+1. `cd` vào `DEPLOY_PATH`. Giá trị đúng là `/root/Documents/port/backend`. Nếu secret còn đường dẫn cũ `.../RoleManagement.Api` mà thư mục đó không có, script tự bỏ phần cuối và vào `backend`.
 2. `git pull --ff-only` ở thư mục gốc repository, nên cả `frontend/` và `backend/` đều được cập nhật.
-3. Kiểm tra file `frontend/Dockerfile` tồn tại. Thiếu file thì dừng, không deploy bản cũ.
-4. `docker compose up -d --build` build image API và image admin, rồi tạo lại container.
-5. `docker compose up -d --build` build image API và image admin, rồi tạo lại container. Nginx cổng 443 của `admin.minhhieudev.id.vn` chuyển vào container frontend.
+3. Vào `$ROOT/backend`, nơi có `docker-compose.yml`. Kiểm tra `frontend/Dockerfile` tồn tại. Thiếu file thì dừng, không deploy bản cũ.
+4. `docker compose up -d --build` build image API và image admin, rồi tạo lại container. Nginx cổng 443 của `admin.minhhieudev.id.vn` chuyển vào container frontend.
+5. Tạo lại container Nginx để nạp `default.conf` mới.
 6. Certbot thêm tên admin vào chứng chỉ. Lỗi Certbot không chặn deploy nếu file chứng chỉ API đã có.
 7. `docker compose exec -T nginx nginx -t` rồi `nginx -s reload`. Admin là `https://admin.minhhieudev.id.vn`. API là `https://api.minhhieudev.id.vn`.
 
@@ -250,7 +250,7 @@ Script trên VPS làm lần lượt:
 | `VPS_USER` | `username` | `root` |
 | `VPS_SSH_KEY` | `key` | Nội dung file `/root/.ssh/gha_deploy` |
 | `VPS_PORT` | `port` | `22` |
-| `DEPLOY_PATH` | `script` (`cd`) | `/root/Documents/port/backend/RoleManagement.Api` |
+| `DEPLOY_PATH` | `script` (`cd`) | `/root/Documents/port/backend` |
 
 `VPS_HOST` phải là IP của máy mà Actions SSH vào, không phải tên miền. Tên miền chỉ dùng sau khi bản ghi A đã trỏ đúng máy đó. Lấy IP trên chính máy deploy:
 
@@ -319,7 +319,7 @@ PostgreSQL nhận kết nối mạng. DBeaver trên Mac nối thẳng tới máy
 | Port | `5432` |
 | Database | `RoleManagementDb` |
 | Username | `postgres` |
-| Password | `123456Aa@` |
+| Password | giá trị `POSTGRES_PASSWORD` trong `backend/.env` trên máy chạy database. Không commit file này |
 
 4. Bấm **Test Connection**. Lần đầu DBeaver hỏi tải driver PostgreSQL, chọn **Download**.
 5. Thông báo **Connected** thì bấm **Finish**.
@@ -385,7 +385,7 @@ sudo ufw allow 80/tcp
 sudo ufw status
 cd /root/Documents/port
 git pull
-cd backend/RoleManagement.Api
+cd backend
 docker compose up -d --build
 docker compose ps
 ```
@@ -428,7 +428,7 @@ Vite mở `http://localhost:5173` và proxy `/api` sang `http://api.minhhieudev.
 | `VPS_HOST` | `103.183.120.48` nếu API chạy trên máy đó. Chỉ IP, không dùng tên miền |
 | `VPS_USER` | `root` |
 | `VPS_PORT` | `22` |
-| `DEPLOY_PATH` | `/root/Documents/port/backend/RoleManagement.Api` |
+| `DEPLOY_PATH` | `/root/Documents/port/backend` |
 
 ```bash
 ssh -p 22 -i ~/.ssh/gha_deploy root@103.183.120.48
@@ -461,11 +461,11 @@ sudo apt update
 sudo apt install -y certbot
 cd /root/Documents/port
 git pull
-cd backend/RoleManagement.Api
+cd backend
 mkdir -p certbot/www
 docker compose up -d --build
 sudo certbot certonly --webroot \
-  -w /root/Documents/port/backend/RoleManagement.Api/certbot/www \
+  -w /root/Documents/port/backend/certbot/www \
   -d api.minhhieudev.id.vn \
   --email hieugm22@gmail.com \
   --agree-tos \
@@ -485,7 +485,7 @@ Thành công thì có hai file:
 
 ### 10.3. Bật HTTPS trong Nginx
 
-Sửa `backend/RoleManagement.Api/nginx/default.conf`. Thay khối `server` của `api.minhhieudev.id.vn` (khối `listen 80` đầu tiên) bằng hai khối sau. Giữ nguyên khối `server` của `minhhieudev.id.vn`.
+Sửa `backend/nginx/default.conf`. Thay khối `server` của `api.minhhieudev.id.vn` (khối `listen 80` đầu tiên) bằng hai khối sau. Giữ nguyên khối `server` của `minhhieudev.id.vn`.
 
 ```nginx
 server {
@@ -532,13 +532,13 @@ server {
 Sửa file trên máy chưa làm container đổi cấu hình. Phải kiểm tra rồi reload Nginx **trong container**:
 
 ```bash
-cd /root/Documents/port/backend/RoleManagement.Api
+cd /root/Documents/port/backend
 docker compose exec nginx nginx -t
 docker compose exec nginx nginx -s reload
 docker compose ps
 ```
 
-- `cd /root/Documents/port/backend/RoleManagement.Api` đứng đúng thư mục có `docker-compose.yml`.
+- `cd /root/Documents/port/backend` đứng đúng thư mục có `docker-compose.yml`.
 - `docker compose exec nginx nginx -t` chạy `nginx -t` bên trong container `nginx`. Lệnh này đọc `default.conf` vừa sửa và hai file `.pem`. Phải in `syntax is ok` và `test is successful`. Nếu báo không thấy file `.pem`, chứng chỉ chưa được cấp hoặc volume `/etc/letsencrypt` chưa gắn.
 - `docker compose exec nginx nginx -s reload` bảo tiến trình Nginx đang chạy nạp lại file cấu hình, không tắt container. Dòng `signal process started` nghĩa là reload đã nhận tín hiệu và thành công.
 - Không chạy `sudo systemctl reload nginx`. Máy không có dịch vụ `nginx.service` nên lệnh đó báo `nginx.service is not active, cannot reload`. Nginx chỉ chạy trong container.
@@ -561,7 +561,7 @@ Chứng chỉ Let's Encrypt hết hạn sau 90 ngày. Certbot tự gia hạn. Th
 ```bash
 sudo tee /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh >/dev/null <<'EOF'
 #!/bin/sh
-docker compose -f /root/Documents/port/backend/RoleManagement.Api/docker-compose.yml exec -T nginx nginx -s reload
+docker compose -f /root/Documents/port/backend/docker-compose.yml exec -T nginx nginx -s reload
 EOF
 sudo chmod 755 /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
 sudo certbot renew --dry-run
@@ -581,11 +581,11 @@ Admin React không tự giữ chứng chỉ. Container `frontend` chỉ nói HTT
 Chạy khi Nginx hiện tại vẫn phục vụ HTTP, trước khi bật khối `listen 443` của admin:
 
 ```bash
-cd /root/Documents/port/backend/RoleManagement.Api
+cd /root/Documents/port/backend
 mkdir -p certbot/www
 sudo certbot certonly --webroot --non-interactive --expand \
   --cert-name api.minhhieudev.id.vn \
-  -w /root/Documents/port/backend/RoleManagement.Api/certbot/www \
+  -w /root/Documents/port/backend/certbot/www \
   -d api.minhhieudev.id.vn \
   -d admin.minhhieudev.id.vn \
   --email hieugm22@gmail.com \
@@ -602,11 +602,11 @@ Lệnh này mở rộng chứng chỉ đang có của `api.minhhieudev.id.vn` đ
 - `/etc/letsencrypt/live/api.minhhieudev.id.vn/fullchain.pem`
 - `/etc/letsencrypt/live/api.minhhieudev.id.vn/privkey.pem`
 
-Nginx của admin và API cùng dùng hai file này. Workflow Deploy chạy `certbot --expand` trước khi tạo lại container.
+Nginx của admin và API cùng dùng hai file này. Workflow Deploy chạy `certbot --expand` sau khi container Nginx đã chạy. Lỗi Certbot không chặn deploy nếu chứng chỉ API đã có.
 
 ### 11.2. Nginx
 
-`backend/RoleManagement.Api/nginx/default.conf` đã có hai khối cho admin:
+`backend/nginx/default.conf` đã có hai khối cho admin:
 
 - cổng `80`: giữ đường dẫn kiểm tra chứng chỉ, URL còn lại trả `301` sang `https://admin.minhhieudev.id.vn`
 - cổng `443`: dùng hai file `.pem` ở trên và `proxy_pass` tới container `frontend`
@@ -616,7 +616,7 @@ Nginx của admin và API cùng dùng hai file này. Workflow Deploy chạy `cer
 Nạp cấu hình trong container:
 
 ```bash
-cd /root/Documents/port/backend/RoleManagement.Api
+cd /root/Documents/port/backend
 docker compose exec nginx nginx -t
 docker compose exec nginx nginx -s reload
 ```

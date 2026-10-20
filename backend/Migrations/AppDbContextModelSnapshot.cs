@@ -23,7 +23,7 @@ namespace RoleManagement.Api.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("RoleManagement.Api.Models.Role", b =>
+            modelBuilder.Entity("RoleManagement.Api.Modules.Roles.Entities.Role", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
