@@ -15,6 +15,8 @@ using RoleManagement.Api.Modules.Users.Entities;
 using RoleManagement.Api.Modules.Users.Repositories;
 using RoleManagement.Api.Modules.Users.Services;
 
+LoadDotEnv(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
@@ -155,3 +157,43 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+static void LoadDotEnv(string path)
+{
+    if (!File.Exists(path))
+    {
+        return;
+    }
+
+    foreach (var rawLine in File.ReadLines(path))
+    {
+        var line = rawLine.Trim();
+        if (line.Length == 0 || line.StartsWith('#'))
+        {
+            continue;
+        }
+
+        var separator = line.IndexOf('=');
+        if (separator <= 0)
+        {
+            continue;
+        }
+
+        var name = line[..separator].Trim();
+        var value = line[(separator + 1)..].Trim().Trim('"');
+        var variable = name switch
+        {
+            "JWT_KEY" => "Jwt__Key",
+            "SEED_PASSWORD" => "Seed__Password",
+            "SEED_USERNAME" => "Seed__Username",
+            _ => null,
+        };
+
+        if (variable == null || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(variable)))
+        {
+            continue;
+        }
+
+        Environment.SetEnvironmentVariable(variable, value);
+    }
+}

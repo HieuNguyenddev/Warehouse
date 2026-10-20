@@ -30,7 +30,10 @@ jobs:
             cd "$ROOT/backend"
             test -f "$ROOT/frontend/Dockerfile"
             test -f docker-compose.yml
-            test -f .env || { echo "Thiếu $ROOT/backend/.env. Tạo file với POSTGRES_PASSWORD trước khi deploy."; exit 1; }
+            test -f .env || { echo "Thiếu $ROOT/backend/.env. Tạo file với POSTGRES_PASSWORD, JWT_KEY và SEED_PASSWORD trước khi deploy."; exit 1; }
+            grep -q '^POSTGRES_PASSWORD=.' .env || { echo "Thiếu POSTGRES_PASSWORD trong $ROOT/backend/.env"; exit 1; }
+            grep -q '^JWT_KEY=.' .env || { echo "Thiếu JWT_KEY trong $ROOT/backend/.env"; exit 1; }
+            grep -q '^SEED_PASSWORD=.' .env || { echo "Thiếu SEED_PASSWORD trong $ROOT/backend/.env"; exit 1; }
             mkdir -p certbot/www
             docker compose up -d --build
             docker compose up -d --force-recreate --no-deps nginx
