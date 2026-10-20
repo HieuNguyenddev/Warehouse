@@ -123,7 +123,7 @@ docker compose stop postgres
 
 VPS dùng Ubuntu, Docker Compose, khoảng 2 GB RAM. API không mở cổng `8080` ra internet. Nginx trong Compose nhận cổng `80` và `443`, rồi chuyển `api.minhhieudev.id.vn` vào container API.
 
-Thư mục trên VPS: `/root/Documents/port`. Compose nằm ở `/root/Documents/port/backend`.
+Thư mục trên VPS: `/root/Documents/Warehouse`. Compose nằm ở `/root/Documents/Warehouse/backend`.
 
 ### 2.1. Cài Docker
 
@@ -159,9 +159,9 @@ sudo ufw status
 ### 2.2. Lấy mã nguồn và chạy
 
 ```bash
-sudo mkdir -p /root/Documents/port
-sudo git clone https://github.com/HieuNguyenddev/Warehouse.git /root/Documents/port
-cd /root/Documents/port/backend
+sudo mkdir -p /root/Documents/Warehouse
+sudo git clone https://github.com/HieuNguyenddev/Warehouse.git /root/Documents/Warehouse
+cd /root/Documents/Warehouse/backend
 ```
 
 - `git clone` tải cả repository. Frontend nằm cạnh `backend`, Compose cần thư mục đó để build giao diện admin.
@@ -173,14 +173,14 @@ Từ máy đang dùng, SSH vào VPS rồi đứng đúng thư mục Compose:
 
 ```bash
 ssh -p 22 root@103.183.120.48
-cd /root/Documents/port/backend
+cd /root/Documents/Warehouse/backend
 pwd
 ls .env.example
 ```
 
 - `ssh -p 22 root@103.183.120.48` mở shell trên VPS. Các lệnh sau chạy trên VPS, không chạy trên máy cá nhân.
-- `cd /root/Documents/port/backend` vào thư mục có `docker-compose.yml`.
-- `pwd` phải in `/root/Documents/port/backend`. Sai thư mục thì `.env` không được Compose đọc.
+- `cd /root/Documents/Warehouse/backend` vào thư mục có `docker-compose.yml`.
+- `pwd` phải in `/root/Documents/Warehouse/backend`. Sai thư mục thì `.env` không được Compose đọc.
 - `ls .env.example` xác nhận file mẫu đã có sau `git clone` hoặc `git pull`.
 
 Database đã chạy từ trước thì lấy đúng mật khẩu volume hiện tại, trước khi sửa Compose:
@@ -227,7 +227,7 @@ sudo docker compose ps
 Đổi mật khẩu sau này: sửa `.env`, rồi đổi luôn mật khẩu bên trong database. Chỉ sửa file thì API không đăng nhập được volume cũ.
 
 ```bash
-cd /root/Documents/port/backend
+cd /root/Documents/Warehouse/backend
 docker compose exec postgres psql -U postgres -d RoleManagementDb -c "ALTER USER postgres PASSWORD 'MAT_KHAU_MOI';"
 umask 077
 printf '%s\n' 'POSTGRES_PASSWORD=MAT_KHAU_MOI' > .env
@@ -250,7 +250,7 @@ curl -i https://api.minhhieudev.id.vn/api/roles
 Xem log khi API không lên:
 
 ```bash
-cd /root/Documents/port/backend
+cd /root/Documents/Warehouse/backend
 sudo docker compose logs api --tail 80
 sudo docker compose logs postgres --tail 40
 ```
@@ -258,7 +258,7 @@ sudo docker compose logs postgres --tail 40
 ### 2.4. Cập nhật sau khi có commit mới
 
 ```bash
-cd /root/Documents/port
+cd /root/Documents/Warehouse
 sudo git pull --ff-only
 cd backend
 sudo docker compose up -d --build
@@ -272,12 +272,12 @@ sudo docker compose exec -T nginx nginx -s reload
 - `--force-recreate --no-deps nginx` tạo lại Nginx để đọc `nginx/default.conf` mới. Chỉ `docker compose up` không làm việc này nếu image Nginx không đổi.
 - `nginx -t` kiểm tra cấu hình. `nginx -s reload` nạp lại trong container. Dòng `signal process started` là reload đã nhận. Không dùng `systemctl reload nginx` vì máy không cài Nginx trên host.
 
-GitHub Actions làm các bước này khi đẩy nhánh `main`. Secret `DEPLOY_PATH` là `/root/Documents/port/backend`. Phần DNS, chứng chỉ và secret SSH nằm ở `README.MD` thư mục gốc repository.
+GitHub Actions làm các bước này khi đẩy nhánh `main`. Secret `DEPLOY_PATH` là `/root/Documents/Warehouse/backend`. Phần DNS, chứng chỉ và secret SSH nằm ở `README.MD` thư mục gốc repository.
 
 ### 2.5. Dừng stack trên VPS
 
 ```bash
-cd /root/Documents/port/backend
+cd /root/Documents/Warehouse/backend
 sudo docker compose down
 ```
 
