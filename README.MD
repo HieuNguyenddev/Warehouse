@@ -456,7 +456,7 @@ docker compose up -d --build
 sudo certbot certonly --webroot \
   -w /root/Documents/port/backend/RoleManagement.Api/certbot/www \
   -d api.minhhieudev.id.vn \
-  --email ban@example.com \
+  --email hieugm22@gmail.com \
   --agree-tos \
   --no-eff-email
 ```
@@ -465,7 +465,7 @@ sudo certbot certonly --webroot \
 - `git pull` lấy bản Nginx có đường dẫn `/.well-known/acme-challenge/`.
 - `mkdir -p certbot/www` tạo thư mục Let's Encrypt ghi file kiểm tra. Container Nginx đọc đúng thư mục này.
 - `docker compose up -d --build` chạy lại Nginx với cổng `80`, `443` và hai volume chứng chỉ.
-- `certbot certonly --webroot` chỉ xin file chứng chỉ, không sửa Nginx. `-w` là thư mục webroot. `-d` là đúng tên `api.minhhieudev.id.vn`. `--email` nhận thư hết hạn: thay `ban@example.com` bằng email của bạn. `--agree-tos` chấp nhận điều khoản Let's Encrypt.
+- `certbot certonly --webroot` chỉ xin file chứng chỉ, không sửa Nginx. `-w` là thư mục webroot. `-d` là đúng tên `api.minhhieudev.id.vn`. `--email` nhận thư hết hạn. `--agree-tos` chấp nhận điều khoản Let's Encrypt.
 
 Thành công thì có hai file:
 
@@ -516,18 +516,24 @@ server {
 - `proxy_pass http://rolemanagement_api` vẫn là HTTP nội bộ trong Docker. Chỉ phía ngoài dùng HTTPS.
 - `X-Forwarded-Proto` báo cho API biết client gọi bằng `https`.
 
-Nạp lại Nginx:
+### 10.4. Reload Nginx
+
+Sửa file trên máy chưa làm container đổi cấu hình. Phải kiểm tra rồi reload Nginx **trong container**:
 
 ```bash
 cd /root/Documents/port/backend/RoleManagement.Api
 docker compose exec nginx nginx -t
 docker compose exec nginx nginx -s reload
+docker compose ps
 ```
 
-- `nginx -t` kiểm tra cú pháp. Phải có dòng `syntax is ok`. Nếu báo không thấy file `.pem`, chứng chỉ chưa được cấp hoặc volume `/etc/letsencrypt` chưa gắn.
-- `nginx -s reload` áp dụng file mới, không tắt container.
+- `cd /root/Documents/port/backend/RoleManagement.Api` đứng đúng thư mục có `docker-compose.yml`.
+- `docker compose exec nginx nginx -t` chạy `nginx -t` bên trong container `nginx`. Lệnh này đọc `default.conf` vừa sửa và hai file `.pem`. Phải in `syntax is ok` và `test is successful`. Nếu báo không thấy file `.pem`, chứng chỉ chưa được cấp hoặc volume `/etc/letsencrypt` chưa gắn.
+- `docker compose exec nginx nginx -s reload` bảo tiến trình Nginx đang chạy nạp lại file cấu hình, không tắt container. Dòng `signal process started` nghĩa là reload đã nhận tín hiệu và thành công.
+- Không chạy `sudo systemctl reload nginx`. Máy không có dịch vụ `nginx.service` nên lệnh đó báo `nginx.service is not active, cannot reload`. Nginx chỉ chạy trong container.
+- `docker compose ps` xác nhận container `nginx` vẫn `running`.
 
-### 10.4. Kiểm tra
+### 10.5. Kiểm tra
 
 ```bash
 curl -I http://api.minhhieudev.id.vn/api/roles
@@ -537,7 +543,7 @@ curl -i https://api.minhhieudev.id.vn/api/roles
 - Lệnh `http://` phải trả `301` và header `Location: https://api.minhhieudev.id.vn/api/roles`.
 - Lệnh `https://` phải trả **200**. Postman dùng base URL `https://api.minhhieudev.id.vn`.
 
-### 10.5. Gia hạn
+### 10.6. Gia hạn
 
 Chứng chỉ Let's Encrypt hết hạn sau 90 ngày. Certbot tự gia hạn. Thêm lệnh reload Nginx sau khi gia hạn:
 
