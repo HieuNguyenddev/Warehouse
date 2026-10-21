@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getFiles } from "./api/files";
 import { getPositions } from "./api/positions";
 import { getRoles } from "./api/roles";
 import { clearSession, readSession } from "./api/session";
 import { getUserProfiles } from "./api/userProfiles";
 import { getUsers } from "./api/users";
+import FilesPage from "./components/FilesPage.jsx";
 import Icon from "./components/Icon.jsx";
 import LoginPage from "./components/LoginPage.jsx";
 import PositionsPage from "./components/PositionsPage.jsx";
@@ -47,6 +49,7 @@ export default function App() {
   const [positionCount, setPositionCount] = useState(0);
   const [userCount, setUserCount] = useState(0);
   const [profileCount, setProfileCount] = useState(0);
+  const [fileCount, setFileCount] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
   const accountRef = useRef(null);
@@ -55,6 +58,7 @@ export default function App() {
   const setPositionTotal = useCallback((count) => setPositionCount(count), []);
   const setUserTotal = useCallback((count) => setUserCount(count), []);
   const setProfileTotal = useCallback((count) => setProfileCount(count), []);
+  const setFileTotal = useCallback((count) => setFileCount(count), []);
   const openRoles = useCallback(() => {
     setPage("roles");
     setNavOpen(false);
@@ -154,6 +158,14 @@ export default function App() {
       .then((data) => {
         if (!cancelled && Array.isArray(data)) {
           setProfileCount(data.length);
+        }
+      })
+      .catch(() => {});
+
+    getFiles()
+      .then((data) => {
+        if (!cancelled && Array.isArray(data?.files)) {
+          setFileCount(data.files.length);
         }
       })
       .catch(() => {});
@@ -336,6 +348,17 @@ export default function App() {
               <span>Hồ sơ</span>
               <em>{profileCount}</em>
             </button>
+            <button
+              type="button"
+              className={page === "files" ? "nav-item is-active" : "nav-item"}
+              aria-current={page === "files" ? "page" : undefined}
+              title={collapsed ? "Tệp" : undefined}
+              onClick={() => openPage("files")}
+            >
+              <Icon name="fa-folder-open" />
+              <span>Tệp</span>
+              <em>{fileCount}</em>
+            </button>
           </nav>
 
           <div className="sidebar-user">
@@ -346,6 +369,8 @@ export default function App() {
 
         {page === "users" ? (
           <UsersPage onCount={setUserTotal} onOpenRoles={openRoles} />
+        ) : page === "files" ? (
+          <FilesPage onCount={setFileTotal} />
         ) : page === "profiles" ? (
           <UserProfilesPage onCount={setProfileTotal} />
         ) : page === "positions" ? (

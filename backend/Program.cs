@@ -9,7 +9,9 @@ using Npgsql;
 using RoleManagement.Api.Data;
 using RoleManagement.Api.Modules.Auth;
 using RoleManagement.Api.Modules.Auth.Services;
+using RoleManagement.Api.Modules.Files;
 using RoleManagement.Api.Modules.Locations.Services;
+using RoleManagement.Api.Modules.Storage;
 using RoleManagement.Api.Modules.Positions.Repositories;
 using RoleManagement.Api.Modules.Positions.Services;
 using RoleManagement.Api.Modules.Roles.Repositories;
@@ -88,6 +90,8 @@ builder.Services.AddHttpClient("provinces", client =>
     client.Timeout = TimeSpan.FromSeconds(15);
 });
 builder.Services.AddSingleton<LocationCatalog>();
+builder.Services.AddSingleton<GarageStorage>();
+builder.Services.AddSingleton<FileStore>();
 builder.Services.AddAuthorization();
 
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
@@ -211,6 +215,11 @@ static void LoadDotEnv(string path)
     SetFromEnvFile(values, "JWT_KEY", "Jwt__Key");
     SetFromEnvFile(values, "SEED_PASSWORD", "Seed__Password");
     SetFromEnvFile(values, "SEED_USERNAME", "Seed__Username");
+    SetFromEnvFile(values, "GARAGE_ENDPOINT", "Garage__Endpoint");
+    SetFromEnvFile(values, "GARAGE_ACCESS_KEY", "Garage__AccessKey");
+    SetFromEnvFile(values, "GARAGE_SECRET_KEY", "Garage__SecretKey");
+    SetFromEnvFile(values, "GARAGE_BUCKET", "Garage__Bucket");
+    SetFromEnvFile(values, "GARAGE_REGION", "Garage__Region");
 
     if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")))
     {

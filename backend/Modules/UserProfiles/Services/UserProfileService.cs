@@ -130,7 +130,7 @@ public class UserProfileService : IUserProfileService
 
         if (!string.Equals(previousAvatar, profile.AvatarUrl, StringComparison.Ordinal))
         {
-            _avatars.DeleteStored(previousAvatar);
+            await _avatars.DeleteStoredAsync(previousAvatar, cancellationToken);
         }
 
         return UserProfileResult.Ok(UserProfileResponse.From(profile));
@@ -146,7 +146,7 @@ public class UserProfileService : IUserProfileService
 
         var avatar = profile.AvatarUrl;
         await _profiles.DeleteAsync(profile, cancellationToken);
-        _avatars.DeleteStored(avatar);
+        await _avatars.DeleteStoredAsync(avatar, cancellationToken);
         return UserProfileResult.Ok();
     }
 

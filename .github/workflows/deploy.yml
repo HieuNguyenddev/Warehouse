@@ -55,6 +55,7 @@ jobs:
               chmod 600 .env
               echo "Đã ghi CONNECTION_STRING với Host=postgres cho container API."
             fi
+            bash "$ROOT/scripts/ensure-garage.sh"
             mkdir -p certbot/www
             docker compose up -d --build
             docker compose up -d --force-recreate --no-deps nginx

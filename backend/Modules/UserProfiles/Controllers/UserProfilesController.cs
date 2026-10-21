@@ -36,20 +36,27 @@ public class UserProfilesController : ControllerBase
         }
         catch (InvalidOperationException exception)
         {
-            return BadRequest(new ApiMessage(exception.Message));
+            return StorageError(exception);
         }
     }
 
     [HttpGet("avatars/{fileName}")]
-    public IActionResult DownloadAvatar(string fileName)
+    public async Task<IActionResult> DownloadAvatar(string fileName, CancellationToken cancellationToken)
     {
-        var opened = _avatars.Open(fileName);
-        if (opened == null)
+        try
         {
-            return NotFound(new ApiMessage("Không tìm thấy ảnh đại diện."));
-        }
+            var opened = await _avatars.OpenAsync(fileName, cancellationToken);
+            if (opened == null)
+            {
+                return NotFound(new ApiMessage("Không tìm thấy ảnh đại diện."));
+            }
 
-        return PhysicalFile(opened.Value.Path, opened.Value.ContentType);
+            return File(opened.Stream, opened.ContentType);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return StorageError(exception);
+        }
     }
 
     [HttpGet]
@@ -109,6 +116,17 @@ public class UserProfilesController : ControllerBase
         }
 
         return NoContent();
+    }
+
+    private ActionResult StorageError(InvalidOperationException exception)
+    {
+        var message = new ApiMessage(exception.Message);
+        if (exception.Message.Contains("Garage", StringComparison.Ordinal))
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, message);
+        }
+
+        return BadRequest(message);
     }
 
     private ActionResult ToError(UserProfileResult result)

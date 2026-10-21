@@ -183,6 +183,9 @@ cd /root/Documents/Warehouse/backend
 | `SEED_PASSWORD` | Mật khẩu dùng khi tạo tài khoản đó lần đầu. Không ghi đè mật khẩu đã lưu trong database |
 | `CONNECTION_STRING` | Chuỗi API dùng trong Docker. Host là `postgres`, mật khẩu trùng `POSTGRES_PASSWORD`. GitHub Actions ghi dòng này nếu thiếu |
 | `CONNECTION_STRING_DEVELOPMENT` | Chuỗi khi `dotnet run` trên máy development. Host là IP VPS, ví dụ `103.183.120.48`. Container trên VPS không đọc dòng này |
+| `GARAGE_ACCESS_KEY` | Khóa S3, dạng `GK` cộng 30 ký tự hex. `scripts/ensure-garage.sh` sinh nếu thiếu hoặc sai dạng |
+| `GARAGE_SECRET_KEY` | Bí mật của khóa S3, 64 ký tự hex. Cùng script trên |
+| `GARAGE_BUCKET` | Bucket chứa ảnh và tệp. Mặc định `warehouse` |
 
 Từ máy đang dùng, SSH vào VPS rồi đứng đúng thư mục Compose:
 
@@ -248,6 +251,7 @@ grep -c '^CONNECTION_STRING=Host=postgres;' .env
 - Mỗi lệnh `grep -c` phải in `1`.
 - Không `git add .env`. File này nằm trong `.gitignore`. `backend/.dockerignore` cũng bỏ file này khi build image.
 - GitHub Actions dừng trước `docker compose up` nếu thiếu `POSTGRES_PASSWORD`, `JWT_KEY` hoặc `SEED_PASSWORD`. Thiếu `CONNECTION_STRING`, hoặc host của dòng đó không phải `postgres`, thì workflow ghi `Host=postgres;Port=5432;Database=RoleManagementDb;Username=postgres;Password=` cộng đúng `POSTGRES_PASSWORD`. Container trên VPS không dùng `CONNECTION_STRING_DEVELOPMENT`.
+- Cùng lúc đó `scripts/ensure-garage.sh` ghi `GARAGE_ACCESS_KEY`, `GARAGE_SECRET_KEY`, `GARAGE_BUCKET` khi thiếu, và tạo `garage/garage.toml` từ file mẫu. File toml không đưa vào git. Ảnh và tệp của container API đi vào Garage, không còn volume `avatar-data`.
 
 Tài khoản admin đã được tạo bằng mật khẩu cũ thì `SEED_PASSWORD` mới không đổi mật khẩu trong database. Đăng nhập bằng mật khẩu đang dùng, rồi đổi mật khẩu trong giao diện. Lần cài mới, API tạo user bằng đúng `SEED_PASSWORD`.
 

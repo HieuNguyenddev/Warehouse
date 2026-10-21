@@ -12,10 +12,17 @@ services:
       Jwt__Key: ${JWT_KEY:?Đặt JWT_KEY trong backend/.env, ít nhất 32 ký tự}
       Seed__Username: ${SEED_USERNAME:-admin}
       Seed__Password: ${SEED_PASSWORD:?Đặt SEED_PASSWORD trong backend/.env}
-    volumes:
-      - avatar-data:/app/data/avatars
+      Garage__Endpoint: http://garage:3900
+      Garage__AccessKey: ${GARAGE_ACCESS_KEY:?Đặt GARAGE_ACCESS_KEY trong backend/.env}
+      Garage__SecretKey: ${GARAGE_SECRET_KEY:?Đặt GARAGE_SECRET_KEY trong backend/.env}
+      Garage__Bucket: ${GARAGE_BUCKET:-warehouse}
+      Garage__Region: garage
+      AWS_REQUEST_CHECKSUM_CALCULATION: WHEN_REQUIRED
+      AWS_RESPONSE_CHECKSUM_VALIDATION: WHEN_REQUIRED
     depends_on:
       postgres:
+        condition: service_healthy
+      garage:
         condition: service_healthy
 
   frontend:
@@ -42,6 +49,25 @@ services:
       - api
       - frontend
 
+  garage:
+    image: dxflrs/garage:v2.3.0
+    mem_limit: 256m
+    command: ["/garage", "-c", "/etc/garage.toml", "server", "--single-node", "--default-bucket"]
+    environment:
+      GARAGE_DEFAULT_BUCKET: ${GARAGE_BUCKET:-warehouse}
+      GARAGE_DEFAULT_ACCESS_KEY: ${GARAGE_ACCESS_KEY:?Đặt GARAGE_ACCESS_KEY trong backend/.env}
+      GARAGE_DEFAULT_SECRET_KEY: ${GARAGE_SECRET_KEY:?Đặt GARAGE_SECRET_KEY trong backend/.env}
+    volumes:
+      - ./garage/garage.toml:/etc/garage.toml:ro
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+    healthcheck:
+      test: ["CMD", "/garage", "-c", "/etc/garage.toml", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
   postgres:
     image: postgres:16-alpine
     mem_limit: 512m
@@ -63,4 +89,5 @@ services:
 
 volumes:
   postgres-data:
-  avatar-data:
+  garage-meta:
+  garage-data:

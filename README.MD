@@ -241,10 +241,11 @@ Script trên VPS làm lần lượt:
 3. Vào `$ROOT/backend`, nơi có `docker-compose.yml`. Kiểm tra `frontend/Dockerfile` tồn tại. Thiếu file thì dừng, không deploy bản cũ.
 4. Kiểm tra `POSTGRES_PASSWORD`, `JWT_KEY` và `SEED_PASSWORD` trong `backend/.env`. Thiếu một dòng thì dừng trước `docker compose up`.
 5. Ghi `CONNECTION_STRING` cho container API: `Host=postgres;Port=5432;Database=RoleManagementDb;Username=postgres;Password=` cộng đúng `POSTGRES_PASSWORD`. File VPS cũ chưa có dòng này, hoặc dòng còn host `103.183.120.48`, thì workflow ghi lại. Bên trong Docker, PostgreSQL là service tên `postgres`. IP public chỉ dùng ở `CONNECTION_STRING_DEVELOPMENT` khi `dotnet run` trên máy development.
-6. `docker compose up -d --build` build image API và image admin, rồi tạo lại container. Nginx cổng 443 của `admin.minhhieudev.id.vn` chuyển vào container frontend. API nhận `ConnectionStrings__DefaultConnection` từ `CONNECTION_STRING`.
-7. Tạo lại container Nginx để nạp `default.conf` mới.
-8. Certbot thêm tên admin vào chứng chỉ. Lỗi Certbot không chặn deploy nếu file chứng chỉ API đã có.
-9. `docker compose exec -T nginx nginx -t` rồi `nginx -s reload`. Admin là `https://admin.minhhieudev.id.vn`. API là `https://api.minhhieudev.id.vn`.
+6. `scripts/ensure-garage.sh` tạo khóa Garage và `backend/garage/garage.toml` nếu chưa có. Ảnh đại diện và tệp trong Docker ghi vào bucket `warehouse`. Cổng S3 không mở ra internet.
+7. `docker compose up -d --build` build image API và image admin, rồi tạo lại container. Nginx cổng 443 của `admin.minhhieudev.id.vn` chuyển vào container frontend. API nhận `ConnectionStrings__DefaultConnection` từ `CONNECTION_STRING`.
+8. Tạo lại container Nginx để nạp `default.conf` mới.
+9. Certbot thêm tên admin vào chứng chỉ. Lỗi Certbot không chặn deploy nếu file chứng chỉ API đã có.
+10. `docker compose exec -T nginx nginx -t` rồi `nginx -s reload`. Admin là `https://admin.minhhieudev.id.vn`. API là `https://api.minhhieudev.id.vn`.
 
 | Secret trong `deploy.yml` | Ô trong workflow | Giá trị điền |
 | --- | --- | --- |
