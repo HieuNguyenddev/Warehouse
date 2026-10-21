@@ -30,9 +30,6 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
-      args:
-        VITE_API_BASE_URL: https://api.minhhieudev.id.vn
-        VITE_TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
     mem_limit: 64m
     expose:
       - "80"
