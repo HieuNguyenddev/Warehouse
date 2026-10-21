@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getRoles } from "../api/roles";
-import { changePassword, createUser, deleteUser, getUsers, updateUser } from "../api/users";
+import { changePassword, createUser, deleteUser, getUsers, setUserLock, updateUser } from "../api/users";
 import Icon from "./Icon.jsx";
 import Pager, { slicePage } from "./Pager.jsx";
 import PasswordForm from "./PasswordForm.jsx";
@@ -25,6 +25,7 @@ export default function UsersPage({ onCount, onOpenRoles }) {
   const [saving, setSaving] = useState(false);
   const [changing, setChanging] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [lockingId, setLockingId] = useState(null);
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
   const [passwordError, setPasswordError] = useState("");
@@ -84,7 +85,7 @@ export default function UsersPage({ onCount, onOpenRoles }) {
     const needle = query.trim().toLowerCase();
     const list = needle
       ? users.filter((user) =>
-          `${user.username || ""} ${user.fullName || ""} ${user.roleName || ""}`
+          `${user.username || ""} ${user.fullName || ""} ${user.roleName || ""} ${user.lastLoginIp || ""} ${user.isLocked ? "khóa" : ""} ${user.deletedAt ? "xóa" : ""}`
             .toLowerCase()
             .includes(needle),
         )
@@ -223,7 +224,7 @@ export default function UsersPage({ onCount, onOpenRoles }) {
       if (passwordUser?.id === pendingDelete.id) {
         closePassword();
       }
-      setNotice(`Đã xóa “${pendingDelete.username}”.`);
+      setNotice(`Đã xóa mềm “${pendingDelete.username}”.`);
       setPendingDelete(null);
       await loadUsers();
     } catch (err) {
@@ -231,6 +232,20 @@ export default function UsersPage({ onCount, onOpenRoles }) {
       setPendingDelete(null);
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function toggleLock(user) {
+    setLockingId(user.id);
+    setError("");
+    try {
+      await setUserLock(user.id, !user.isLocked);
+      setNotice(user.isLocked ? `Đã mở khóa ${user.username}.` : `Đã khóa ${user.username}.`);
+      await loadUsers();
+    } catch (err) {
+      setError(err.message || "Không đổi được trạng thái khóa.");
+    } finally {
+      setLockingId(null);
     }
   }
 
@@ -246,7 +261,7 @@ export default function UsersPage({ onCount, onOpenRoles }) {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Tìm theo tên đăng nhập, họ tên hoặc vai trò"
+            placeholder="Tìm theo tên, vai trò hoặc IP"
             aria-label="Tìm người dùng"
           />
           {query ? (
@@ -311,7 +326,7 @@ export default function UsersPage({ onCount, onOpenRoles }) {
         <div className="panel-head">
           <div>
             <h2>Danh sách</h2>
-            <p>Bấm một dòng để xem đầy đủ. Mật khẩu không hiện trên danh sách.</p>
+            <p>Bấm một dòng để xem đầy đủ. Xóa người dùng là xóa mềm.</p>
           </div>
         </div>
         <UserTable
@@ -324,6 +339,8 @@ export default function UsersPage({ onCount, onOpenRoles }) {
           onEdit={startEdit}
           onPassword={startPassword}
           onDelete={setPendingDelete}
+          onLock={toggleLock}
+          lockingId={lockingId}
           onCreate={openCreate}
           onClearQuery={() => setQuery("")}
         />
@@ -409,7 +426,7 @@ export default function UsersPage({ onCount, onOpenRoles }) {
             </span>
             <h3 id="delete-user-title">Xóa người dùng này?</h3>
             <p>
-              <strong>{pendingDelete.fullName}</strong> ({pendingDelete.username}) sẽ bị xóa và không thể hoàn tác.
+              <strong>{pendingDelete.fullName}</strong> ({pendingDelete.username}) sẽ bị xóa mềm: không đăng nhập được, dữ liệu vẫn nằm trong bảng.
             </p>
             <div className="actions">
               <button type="button" className="ghost" onClick={() => setPendingDelete(null)} disabled={deleting}>

@@ -4,5 +4,8 @@ namespace RoleManagement.Api.Modules.Auth.Services;
 
 public interface IAuthService
 {
-    Task<LoginResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default);
+    Task<LoginResult> LoginAsync(
+        LoginRequest request,
+        string? clientIp,
+        CancellationToken cancellationToken = default);
 }

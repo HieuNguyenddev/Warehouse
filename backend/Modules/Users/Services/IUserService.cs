@@ -17,5 +17,7 @@ public interface IUserService
         ChangePasswordRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<UserResult> SetLockAsync(int id, bool isLocked, CancellationToken cancellationToken = default);
+
     Task<UserResult> DeleteAsync(int id, CancellationToken cancellationToken = default);
 }

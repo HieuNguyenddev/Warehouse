@@ -60,6 +60,15 @@ public class AppDbContext : DbContext
                 .HasMaxLength(500)
                 .IsRequired();
 
+            entity.Property(user => user.IsLocked)
+                .HasDefaultValue(false);
+
+            entity.Property(user => user.FailedLoginCount)
+                .HasDefaultValue(0);
+
+            entity.Property(user => user.LastLoginIp)
+                .HasMaxLength(45);
+
             entity.Property(user => user.CreatedAt)
                 .IsRequired();
 

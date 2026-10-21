@@ -80,6 +80,21 @@ public class UsersController : ControllerBase
         return NoContent();
     }
 
+    [HttpPut("{id:int}/lock")]
+    public async Task<ActionResult<UserResponse>> SetLock(
+        int id,
+        [FromBody] SetLockRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _users.SetLockAsync(id, request.IsLocked, cancellationToken);
+        if (!result.Succeeded)
+        {
+            return ToError(result);
+        }
+
+        return Ok(result.User);
+    }
+
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteUser(int id, CancellationToken cancellationToken)
     {

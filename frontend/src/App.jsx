@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getRoles } from "./api/roles";
 import { clearSession, readSession } from "./api/session";
 import { getUsers } from "./api/users";
@@ -6,6 +6,22 @@ import Icon from "./components/Icon.jsx";
 import LoginPage from "./components/LoginPage.jsx";
 import RolesPage from "./components/RolesPage.jsx";
 import UsersPage from "./components/UsersPage.jsx";
+
+function SidebarToggleIcon({ collapsed }) {
+  return (
+    <svg className="sidebar-toggle-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3.25" y="4.25" width="17.5" height="15.5" rx="2.25" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      <path
+        d={collapsed ? "M10 12h5.2M15.2 12l-2.3-2.3M15.2 12l-2.3 2.3" : "M14.2 12H9M9 12l2.3-2.3M9 12l2.3 2.3"}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 function readTheme() {
   const stored = localStorage.getItem("warehouse.theme");
@@ -25,6 +41,9 @@ export default function App() {
   const [theme, setTheme] = useState(readTheme);
   const [roleCount, setRoleCount] = useState(0);
   const [userCount, setUserCount] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [online, setOnline] = useState(() => navigator.onLine);
+  const accountRef = useRef(null);
 
   const setRoleTotal = useCallback((count) => setRoleCount(count), []);
   const setUserTotal = useCallback((count) => setUserCount(count), []);
@@ -41,6 +60,47 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("warehouse.sidebar", collapsed ? "collapsed" : "expanded");
   }, [collapsed]);
+
+  useEffect(() => {
+    function onOnline() {
+      setOnline(true);
+    }
+    function onOffline() {
+      setOnline(false);
+    }
+
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return undefined;
+    }
+
+    function onPointerDown(event) {
+      if (accountRef.current && !accountRef.current.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    }
+
+    function onKey(event) {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     function onLogout() {
@@ -83,6 +143,7 @@ export default function App() {
     clearSession();
     setSession(null);
     setNavOpen(false);
+    setMenuOpen(false);
   }
 
   function toggleTheme() {
@@ -126,24 +187,64 @@ export default function App() {
             <small>minhhieudev</small>
           </div>
         </div>
+        <button
+          type="button"
+          className="header-collapse"
+          onClick={() => setCollapsed((value) => !value)}
+          aria-pressed={collapsed}
+          aria-label={collapsed ? "Mở rộng menu" : "Thu gọn menu"}
+          title={collapsed ? "Mở rộng menu" : "Thu gọn menu"}
+        >
+          <SidebarToggleIcon collapsed={collapsed} />
+        </button>
         <div className="header-user">
-          <span className="avatar">{initials || "?"}</span>
-          <div>
-            <strong>{session.user.fullName}</strong>
-            <small>{session.user.roleName}</small>
+          <div className="account" ref={accountRef}>
+            <button
+              type="button"
+              className="account-trigger"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              <span className="avatar">
+                {initials || "?"}
+                <span
+                  className={online ? "presence is-online" : "presence"}
+                  title={online ? "Đang trực tuyến" : "Ngoại tuyến"}
+                />
+              </span>
+              <span className="account-label">
+                <strong>{session.user.fullName}</strong>
+                <small>{session.user.roleName}</small>
+              </span>
+            </button>
+            {menuOpen ? (
+              <div className="account-menu" role="menu">
+                <div className="account-menu-head">
+                  <strong>{session.user.fullName}</strong>
+                  <span>@{session.user.username}</span>
+                  <span className={online ? "account-status is-online" : "account-status"}>
+                    {online ? "Đang trực tuyến" : "Ngoại tuyến"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    toggleTheme();
+                    setMenuOpen(false);
+                  }}
+                >
+                  <Icon name={theme === "dark" ? "fa-sun" : "fa-moon"} />
+                  {theme === "dark" ? "Chế độ sáng" : "Chế độ tối"}
+                </button>
+                <button type="button" role="menuitem" className="is-danger" onClick={logout}>
+                  <Icon name="fa-right-from-bracket" />
+                  Đăng xuất
+                </button>
+              </div>
+            ) : null}
           </div>
-          <button
-            type="button"
-            className="header-logout"
-            onClick={toggleTheme}
-            aria-label={theme === "dark" ? "Chế độ sáng" : "Chế độ tối"}
-            title={theme === "dark" ? "Chế độ sáng" : "Chế độ tối"}
-          >
-            <Icon name={theme === "dark" ? "fa-sun" : "fa-moon"} />
-          </button>
-          <button type="button" className="header-logout" onClick={logout} aria-label="Đăng xuất">
-            <Icon name="fa-right-from-bracket" />
-          </button>
         </div>
       </header>
 
@@ -195,17 +296,6 @@ export default function App() {
             <strong>{session.user.fullName}</strong>
             <small>@{session.user.username}</small>
           </div>
-
-          <button
-            type="button"
-            className="nav-item sidebar-toggle"
-            onClick={() => setCollapsed((value) => !value)}
-            aria-pressed={collapsed}
-            title={collapsed ? "Mở rộng menu" : "Thu gọn menu"}
-          >
-            <Icon name={collapsed ? "fa-angles-right" : "fa-angles-left"} />
-            <span>{collapsed ? "Mở rộng" : "Thu gọn"}</span>
-          </button>
         </aside>
 
         {page === "users" ? (

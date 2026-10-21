@@ -22,28 +22,43 @@ public class AuthService : IAuthService
         _tokens = tokens;
     }
 
-    public async Task<LoginResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
+    public async Task<LoginResult> LoginAsync(
+        LoginRequest request,
+        string? clientIp,
+        CancellationToken cancellationToken = default)
     {
         var username = request.Username.Trim();
         var password = request.Password.Trim();
         var user = await _users.FindByUsernameAsync(username, cancellationToken);
-        if (user == null)
+        if (user == null || user.DeletedAt != null)
         {
             return LoginResult.Invalid("Tên đăng nhập hoặc mật khẩu không đúng.");
+        }
+
+        if (user.IsLocked)
+        {
+            return LoginResult.Invalid("Tài khoản đã bị khóa.");
         }
 
         var verification = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password);
         if (verification == PasswordVerificationResult.Failed)
         {
+            user.FailedLoginCount += 1;
+            user.UpdatedAt = DateTime.UtcNow;
+            await _users.SaveAsync(cancellationToken);
             return LoginResult.Invalid("Tên đăng nhập hoặc mật khẩu không đúng.");
         }
 
         if (verification == PasswordVerificationResult.SuccessRehashNeeded)
         {
             user.PasswordHash = _passwordHasher.HashPassword(user, password);
-            user.UpdatedAt = DateTime.UtcNow;
-            await _users.SaveAsync(cancellationToken);
         }
+
+        user.FailedLoginCount = 0;
+        user.LastLoginAt = DateTime.UtcNow;
+        user.LastLoginIp = NormalizeIp(clientIp);
+        user.UpdatedAt = user.LastLoginAt;
+        await _users.SaveAsync(cancellationToken);
 
         var (token, expiresAt) = _tokens.Create(user);
         return LoginResult.Ok(new LoginResponse
@@ -52,5 +67,21 @@ public class AuthService : IAuthService
             ExpiresAt = expiresAt,
             User = UserResponse.From(user),
         });
+    }
+
+    private static string? NormalizeIp(string? clientIp)
+    {
+        if (string.IsNullOrWhiteSpace(clientIp))
+        {
+            return null;
+        }
+
+        var ip = clientIp.Trim();
+        if (ip == "::1")
+        {
+            ip = "127.0.0.1";
+        }
+
+        return ip.Length <= 45 ? ip : ip[..45];
     }
 }

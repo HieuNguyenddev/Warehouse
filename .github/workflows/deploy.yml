@@ -10,7 +10,18 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Telegram — bắt đầu deploy
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DEPLOY_WEBSITE_URL: https://admin.minhhieudev.id.vn
+        run: bash scripts/notify-telegram.sh start
+
       - name: Deploy to VPS
+        id: deploy
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -49,3 +60,19 @@ jobs:
             docker compose exec -T nginx nginx -t
             docker compose exec -T nginx nginx -s reload
             docker compose ps
+
+      - name: Telegram — deploy thành công
+        if: success()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DEPLOY_WEBSITE_URL: https://admin.minhhieudev.id.vn
+        run: bash scripts/notify-telegram.sh success
+
+      - name: Telegram — deploy thất bại
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DEPLOY_ERROR: Bước deploy trên VPS thất bại. Log ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: bash scripts/notify-telegram.sh failure

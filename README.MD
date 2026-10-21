@@ -251,6 +251,22 @@ Script trên VPS làm lần lượt:
 | `VPS_SSH_KEY` | `key` | Nội dung file `/root/.ssh/gha_deploy` |
 | `VPS_PORT` | `port` | `22` |
 | `DEPLOY_PATH` | `script` (`cd`) | `/root/Documents/Warehouse/backend` |
+| `TELEGRAM_BOT_TOKEN` | thông báo Telegram | Token BotFather cấp sau lệnh `/newbot` |
+| `TELEGRAM_CHAT_ID` | thông báo Telegram | ID nhóm hoặc chat nhận tin |
+
+Workflow gọi `scripts/notify-telegram.sh` ba lần: trước khi SSH vào VPS, sau khi deploy xong, và khi một bước phía trên thất bại. Thiếu hai secret thì script chỉ in cảnh báo rồi bỏ qua, không chặn deploy.
+
+Tạo bot và lấy chat id:
+
+1. Mở Telegram, nhắn `@BotFather`, gửi `/newbot`, làm theo hướng dẫn. BotFather trả một token. Dán token vào secret `TELEGRAM_BOT_TOKEN`.
+2. Nhắn một câu bất kỳ cho bot vừa tạo, hoặc thêm bot vào nhóm rồi nhắn trong nhóm.
+3. Mở trình duyệt, thay `TOKEN` bằng token vừa nhận:
+
+```text
+https://api.telegram.org/botTOKEN/getUpdates
+```
+
+4. Trong JSON, lấy số `chat.id`. Nhóm thường có id âm. Dán số đó vào secret `TELEGRAM_CHAT_ID`.
 
 `VPS_HOST` phải là IP của máy mà Actions SSH vào, không phải tên miền. Tên miền chỉ dùng sau khi bản ghi A đã trỏ đúng máy đó. Lấy IP trên chính máy deploy:
 

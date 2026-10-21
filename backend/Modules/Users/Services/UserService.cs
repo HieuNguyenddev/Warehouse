@@ -87,7 +87,7 @@ public class UserService : IUserService
         CancellationToken cancellationToken = default)
     {
         var user = await _users.FindTrackedAsync(id, cancellationToken);
-        if (user == null)
+        if (user == null || user.DeletedAt != null)
         {
             return UserResult.NotFound($"Không tìm thấy người dùng có ID = {id}.");
         }
@@ -133,7 +133,7 @@ public class UserService : IUserService
         CancellationToken cancellationToken = default)
     {
         var user = await _users.FindTrackedAsync(id, cancellationToken);
-        if (user == null)
+        if (user == null || user.DeletedAt != null)
         {
             return UserResult.NotFound($"Không tìm thấy người dùng có ID = {id}.");
         }
@@ -158,9 +158,36 @@ public class UserService : IUserService
         }
 
         user.PasswordHash = _passwordHasher.HashPassword(user, newPassword);
+        user.FailedLoginCount = 0;
         user.UpdatedAt = DateTime.UtcNow;
         await _users.SaveAsync(cancellationToken);
         return UserResult.Ok();
+    }
+
+    public async Task<UserResult> SetLockAsync(int id, bool isLocked, CancellationToken cancellationToken = default)
+    {
+        var user = await _users.FindTrackedAsync(id, cancellationToken);
+        if (user == null || user.DeletedAt != null)
+        {
+            return UserResult.NotFound($"Không tìm thấy người dùng có ID = {id}.");
+        }
+
+        if (IsSeedAdmin(user) && isLocked)
+        {
+            return UserResult.Protected("Không khóa tài khoản quản trị mặc định.");
+        }
+
+        user.IsLocked = isLocked;
+        if (!isLocked)
+        {
+            user.FailedLoginCount = 0;
+        }
+
+        user.UpdatedAt = DateTime.UtcNow;
+        await _users.SaveAsync(cancellationToken);
+
+        var updated = await _users.FindAsync(user.Id, cancellationToken);
+        return UserResult.Ok(UserResponse.From(updated!));
     }
 
     public async Task<UserResult> DeleteAsync(int id, CancellationToken cancellationToken = default)
@@ -171,12 +198,19 @@ public class UserService : IUserService
             return UserResult.NotFound($"Không tìm thấy người dùng có ID = {id}.");
         }
 
+        if (user.DeletedAt != null)
+        {
+            return UserResult.NotFound($"Không tìm thấy người dùng có ID = {id}.");
+        }
+
         if (IsSeedAdmin(user))
         {
             return UserResult.Protected("Không xóa được tài khoản quản trị mặc định.");
         }
 
-        await _users.DeleteAsync(user, cancellationToken);
+        user.DeletedAt = DateTime.UtcNow;
+        user.UpdatedAt = user.DeletedAt;
+        await _users.SaveAsync(cancellationToken);
         return UserResult.Ok();
     }
 

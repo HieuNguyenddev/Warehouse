@@ -25,6 +25,13 @@ export function changePassword(id, payload) {
   });
 }
 
+export function setUserLock(id, isLocked) {
+  return request(`/api/users/${id}/lock`, {
+    method: "PUT",
+    body: JSON.stringify({ isLocked }),
+  });
+}
+
 export function deleteUser(id) {
   return request(`/api/users/${id}`, {
     method: "DELETE",

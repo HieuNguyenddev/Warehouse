@@ -20,6 +20,16 @@ function formatDate(value) {
   return `${day} · ${time}`;
 }
 
+function accountStatus(user) {
+  if (user.deletedAt) {
+    return { label: "Đã xóa", tone: "deleted" };
+  }
+  if (user.isLocked) {
+    return { label: "Đã khóa", tone: "locked" };
+  }
+  return { label: "Hoạt động", tone: "active" };
+}
+
 function initials(name) {
   const parts = String(name || "")
     .trim()
@@ -55,6 +65,8 @@ export default function UserTable({
   onEdit,
   onPassword,
   onDelete,
+  onLock,
+  lockingId,
   onCreate,
   onClearQuery,
 }) {
@@ -120,15 +132,25 @@ export default function UserTable({
                 </div>
               </div>
               <p>
-                <span className="role-badge">{user.roleName || "Chưa có vai trò"}</span>
+                <span className="role-badge">{user.roleName || "Chưa có vai trò"}</span>{" "}
+                <span className={`status-pill is-${accountStatus(user).tone}`}>{accountStatus(user).label}</span>
               </p>
               <div className="card-meta">
+                <span>
+                  <Icon name="fa-right-to-bracket" /> {user.lastLoginAt ? formatDate(user.lastLoginAt) : "Chưa đăng nhập"}
+                  {user.lastLoginIp ? ` · ${user.lastLoginIp}` : ""}
+                </span>
                 <span>
                   <Icon name="fa-calendar-plus" /> {formatDate(user.createdAt)}
                 </span>
                 <span>
                   <Icon name="fa-clock-rotate-left" /> {user.updatedAt ? formatDate(user.updatedAt) : "Chưa cập nhật"}
                 </span>
+                {user.deletedAt ? (
+                  <span>
+                    <Icon name="fa-trash" /> {formatDate(user.deletedAt)}
+                  </span>
+                ) : null}
               </div>
             </li>
           );
@@ -140,8 +162,13 @@ export default function UserTable({
             <tr>
               <th>Người dùng</th>
               <th>Vai trò</th>
+              <th>Trạng thái</th>
+              <th>Sai</th>
+              <th>Đăng nhập cuối</th>
+              <th>IP</th>
               <th>Tạo lúc</th>
               <th>Cập nhật</th>
+              <th>Xóa mềm</th>
             </tr>
           </thead>
           <tbody>
@@ -150,7 +177,11 @@ export default function UserTable({
               return (
                 <tr
                   key={user.id}
-                  className={active ? "is-editing is-clickable" : "is-clickable"}
+                  className={[
+                    "is-clickable",
+                    active ? "is-editing" : "",
+                    user.deletedAt ? "is-deleted" : "",
+                  ].filter(Boolean).join(" ")}
                   onClick={() => setSelected(user)}
                 >
                   <td>
@@ -165,6 +196,14 @@ export default function UserTable({
                   <td>
                     <span className="role-badge">{user.roleName || "Chưa có vai trò"}</span>
                   </td>
+                  <td>
+                    <span className={`status-pill is-${accountStatus(user).tone}`}>{accountStatus(user).label}</span>
+                  </td>
+                  <td>{user.failedLoginCount || 0}</td>
+                  <td className="when">
+                    {user.lastLoginAt ? formatDate(user.lastLoginAt) : <span className="muted">Chưa đăng nhập</span>}
+                  </td>
+                  <td className="ip">{user.lastLoginIp || <span className="muted">—</span>}</td>
                   <td className="when">
                     <Icon name="fa-calendar-plus" />
                     {formatDate(user.createdAt)}
@@ -178,6 +217,9 @@ export default function UserTable({
                     ) : (
                       <span className="muted">Chưa cập nhật</span>
                     )}
+                  </td>
+                  <td className="when">
+                    {user.deletedAt ? formatDate(user.deletedAt) : <span className="muted">—</span>}
                   </td>
                 </tr>
               );
@@ -195,11 +237,15 @@ export default function UserTable({
             { label: "Họ tên", value: selected.fullName || "—" },
             { label: "Tên đăng nhập", value: selected.username || "—" },
             { label: "Vai trò", value: selected.roleName || "Chưa có vai trò" },
-            { label: "Mã", value: `#${selected.id}` },
-            { label: "Tạo lúc", value: formatDate(selected.createdAt) },
-            { label: "Cập nhật", value: selected.updatedAt ? formatDate(selected.updatedAt) : "Chưa cập nhật" },
+            { label: "Trạng thái", value: accountStatus(selected).label },
+            { label: "Số lần đăng nhập sai", value: String(selected.failedLoginCount || 0) },
+            { label: "Lần đăng nhập cuối", value: selected.lastLoginAt ? formatDate(selected.lastLoginAt) : "Chưa đăng nhập" },
+            { label: "IP đăng nhập", value: selected.lastLoginIp || "—" },
+            { label: "Ngày tạo", value: formatDate(selected.createdAt) },
+            { label: "Ngày cập nhật", value: selected.updatedAt ? formatDate(selected.updatedAt) : "Chưa cập nhật" },
+            { label: "Xóa mềm", value: selected.deletedAt ? formatDate(selected.deletedAt) : "Chưa xóa" },
           ]}
-          actions={[
+          actions={selected.deletedAt ? [] : [
             {
               label: "Sửa",
               icon: "fa-pen",
@@ -218,7 +264,18 @@ export default function UserTable({
               },
             },
             {
-              label: "Xóa",
+              label: lockingId === selected.id ? "Đang lưu…" : selected.isLocked ? "Mở khóa" : "Khóa tài khoản",
+              icon: selected.isLocked ? "fa-lock-open" : "fa-lock",
+              onClick: () => {
+                if (lockingId === selected.id) {
+                  return;
+                }
+                closeDetail();
+                onLock(selected);
+              },
+            },
+            {
+              label: "Xóa mềm",
               icon: "fa-trash",
               tone: "danger",
               onClick: () => {

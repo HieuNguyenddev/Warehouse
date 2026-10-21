@@ -55,7 +55,9 @@ public class UserRepository : IUserRepository
 
     public Task<bool> AnyInRoleAsync(int roleId, CancellationToken cancellationToken = default)
     {
-        return _context.Users.AnyAsync(user => user.RoleId == roleId, cancellationToken);
+        return _context.Users.AnyAsync(
+            user => user.RoleId == roleId && user.DeletedAt == null,
+            cancellationToken);
     }
 
     public async Task AddAsync(User user, CancellationToken cancellationToken = default)

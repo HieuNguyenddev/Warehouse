@@ -14,9 +14,19 @@ public class UserResponse
 
     public string RoleName { get; set; } = string.Empty;
 
+    public bool IsLocked { get; set; }
+
+    public int FailedLoginCount { get; set; }
+
+    public DateTime? LastLoginAt { get; set; }
+
+    public string? LastLoginIp { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }
+
+    public DateTime? DeletedAt { get; set; }
 
     public static UserResponse From(User user)
     {
@@ -27,8 +37,13 @@ public class UserResponse
             FullName = user.FullName,
             RoleId = user.RoleId,
             RoleName = user.Role?.Name ?? string.Empty,
+            IsLocked = user.IsLocked,
+            FailedLoginCount = user.FailedLoginCount,
+            LastLoginAt = user.LastLoginAt,
+            LastLoginIp = user.LastLoginIp,
             CreatedAt = user.CreatedAt,
             UpdatedAt = user.UpdatedAt,
+            DeletedAt = user.DeletedAt,
         };
     }
 }
