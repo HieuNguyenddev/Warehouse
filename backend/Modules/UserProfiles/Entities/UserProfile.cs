@@ -12,6 +12,8 @@ public class UserProfile
 
     public string FullName { get; set; } = string.Empty;
 
+    public string EmployeeCode { get; set; } = string.Empty;
+
     public DateOnly? DateOfBirth { get; set; }
 
     public short Gender { get; set; }

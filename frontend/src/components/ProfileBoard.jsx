@@ -80,8 +80,8 @@ export default function ProfileBoard({
               </span>
               <AvatarPhoto url={profile.avatarUrl} name={profile.fullName} />
               <div>
-                <strong>{profile.fullName}</strong>
-                <small>@{profile.username}</small>
+                <strong>{profile.fullName} <span className="role-badge">{profile.employeeCode || "Chưa có mã"}</span></strong>
+                <small>{profile.positionName || "Chưa có chức vụ"}</small>
               </div>
             </div>
             <p>{profile.phoneNumber || profile.email || "Chưa có liên hệ"}</p>

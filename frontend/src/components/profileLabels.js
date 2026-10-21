@@ -13,6 +13,108 @@ export const maritalOptions = [
   { value: "4", label: "Góa" },
 ];
 
+export function employeePrefix(code) {
+  const prefix = String(code || "").trim().toUpperCase();
+  return /^[A-Z]{2,10}$/.test(prefix) ? prefix : "";
+}
+
+export function matchesEmployeeCode(code, prefix) {
+  const value = String(code || "");
+  if (!prefix || value.length !== prefix.length + 3 || !value.startsWith(prefix)) {
+    return false;
+  }
+
+  const number = Number(value.slice(prefix.length));
+  return Number.isInteger(number)
+    && number >= 1
+    && number <= 999
+    && String(number).padStart(3, "0") === value.slice(prefix.length);
+}
+
+export function previewEmployeeCode(profiles, prefix, currentCode, profileId) {
+  if (!prefix) {
+    return "";
+  }
+
+  if (matchesEmployeeCode(currentCode, prefix)) {
+    return currentCode;
+  }
+
+  const listed = profiles.find((profile) => profile.id === profileId);
+  if (listed && matchesEmployeeCode(listed.employeeCode, prefix)) {
+    return listed.employeeCode;
+  }
+
+  return nextEmployeeCode(
+    profiles.filter((profile) => profile.id !== profileId),
+    prefix,
+  );
+}
+
+export function alignEmployeeCodes(profiles, positions) {
+  const ordered = [...profiles].sort((left, right) => left.id - right.id);
+  const codes = ordered.map((profile) => String(profile.employeeCode || ""));
+  const byId = new Map();
+
+  for (const profile of ordered) {
+    const position = positions.find((item) => String(item.id) === String(profile.positionId));
+    const prefix = employeePrefix(position?.code || profile.positionCode);
+    if (!prefix || matchesEmployeeCode(profile.employeeCode, prefix)) {
+      byId.set(profile.id, profile);
+      continue;
+    }
+
+    let next = 1;
+    for (const code of codes) {
+      if (!matchesEmployeeCode(code, prefix)) {
+        continue;
+      }
+      const number = Number(code.slice(prefix.length));
+      if (number >= next) {
+        next = number + 1;
+      }
+    }
+
+    if (next > 999) {
+      byId.set(profile.id, profile);
+      continue;
+    }
+
+    const formatted = `${prefix}${String(next).padStart(3, "0")}`;
+    const index = codes.indexOf(String(profile.employeeCode || ""));
+    if (index >= 0) {
+      codes[index] = formatted;
+    }
+    byId.set(profile.id, { ...profile, employeeCode: formatted });
+  }
+
+  return profiles.map((profile) => byId.get(profile.id) || profile);
+}
+
+export function nextEmployeeCode(profiles, prefix) {
+  if (!prefix) {
+    return "";
+  }
+
+  let max = 0;
+  for (const profile of profiles) {
+    const code = String(profile.employeeCode || "");
+    if (!matchesEmployeeCode(code, prefix)) {
+      continue;
+    }
+    const number = Number(code.slice(prefix.length));
+    if (number > max) {
+      max = number;
+    }
+  }
+
+  const next = max + 1;
+  if (next > 999) {
+    return "";
+  }
+  return `${prefix}${String(next).padStart(3, "0")}`;
+}
+
 export function optionLabel(options, value) {
   return options.find((item) => item.value === String(value ?? "0"))?.label || "Chưa rõ";
 }
@@ -69,6 +171,8 @@ export const emptyProfileForm = {
   emergencyContactPhone: "",
   educationLevel: "",
   note: "",
+  positionId: "",
+  employeeCode: "",
 };
 
 export function profileToForm(profile) {
@@ -96,6 +200,8 @@ export function profileToForm(profile) {
     emergencyContactPhone: profile.emergencyContactPhone || "",
     educationLevel: profile.educationLevel || "",
     note: profile.note || "",
+    positionId: profile.positionId ? String(profile.positionId) : "",
+    employeeCode: profile.employeeCode || "",
   };
 }
 
@@ -129,5 +235,6 @@ export function formToPayload(form) {
     emergencyContactPhone: orNull(form.emergencyContactPhone),
     educationLevel: orNull(form.educationLevel),
     note: orNull(form.note),
+    positionId: form.positionId ? Number(form.positionId) : null,
   };
 }

@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { uploadAvatar } from "../api/userProfiles";
 import AvatarPhoto from "./AvatarPhoto.jsx";
 import Icon from "./Icon.jsx";
-import { genderOptions, maritalOptions, optionLabel, profileToForm } from "./profileLabels.js";
+import ProfileJobFields from "./ProfileJobFields.jsx";
+import { employeePrefix, genderOptions, maritalOptions, optionLabel, previewEmployeeCode, profileToForm } from "./profileLabels.js";
 
 const LAYOUT_KEY = "warehouse.cvLayout";
 
@@ -30,6 +31,7 @@ const FIELD_META = {
 };
 
 const DEFAULT_LAYOUT = [
+  { id: "job", title: "Công việc", fields: [] },
   { id: "contact", title: "Liên hệ", fields: ["phoneNumber", "email", "address", "permanentAddress", "provinceCode", "wardCode"] },
   { id: "person", title: "Nhân thân", fields: ["dateOfBirth", "gender", "placeOfBirth", "nationality", "ethnicity", "religion", "maritalStatus", "educationLevel"] },
   { id: "papers", title: "Giấy tờ", fields: ["identityNumber", "identityIssuedDate", "identityIssuedPlace"] },
@@ -155,6 +157,8 @@ export default function ProfileCv({
   onCreate,
   onClose,
   blocked,
+  positions = [],
+  onPositions,
 }) {
   const [activeId, setActiveId] = useState(profileId);
   const [draft, setDraft] = useState(null);
@@ -166,25 +170,67 @@ export default function ProfileCv({
   const dragRef = useRef(null);
   const fileRef = useRef(null);
   const hydratedId = useRef(null);
+  const serverJob = useRef({ id: null, employeeCode: "", positionId: "" });
   const active = profiles.find((profile) => profile.id === activeId) || null;
   const dirty = draft ? JSON.stringify(draft) !== baseline : false;
+  const activePosition = positions.find((item) => String(item.id) === String(draft?.positionId));
+  const shownCode = previewEmployeeCode(
+    profiles,
+    employeePrefix(activePosition?.code),
+    draft?.employeeCode,
+    draft?.id,
+  ) || draft?.employeeCode || "";
 
   useEffect(() => {
     const profile = profiles.find((item) => item.id === activeId) || profiles[0] || null;
     if (!profile) {
       setDraft(null);
       setBaseline("");
+      hydratedId.current = null;
       return;
     }
-    if (hydratedId.current === profile.id) {
-      return;
-    }
-    hydratedId.current = profile.id;
+
     const next = profileToForm(profile);
-    setActiveId(profile.id);
-    setDraft(next);
-    setBaseline(JSON.stringify(next));
-    setError("");
+    const switched = hydratedId.current !== profile.id;
+    if (switched) {
+      hydratedId.current = profile.id;
+      serverJob.current = { id: profile.id, employeeCode: next.employeeCode, positionId: next.positionId };
+      setActiveId(profile.id);
+      setDraft(next);
+      setBaseline(JSON.stringify(next));
+      setError("");
+      return;
+    }
+
+    const previous = serverJob.current;
+    if (previous.employeeCode === next.employeeCode && previous.positionId === next.positionId) {
+      return;
+    }
+
+    serverJob.current = { id: profile.id, employeeCode: next.employeeCode, positionId: next.positionId };
+    setDraft((current) => {
+      if (!current) {
+        return next;
+      }
+      const positionUntouched = current.positionId === previous.positionId;
+      return {
+        ...current,
+        employeeCode: positionUntouched ? next.employeeCode : current.employeeCode,
+        positionId: positionUntouched ? next.positionId : current.positionId,
+      };
+    });
+    setBaseline((current) => {
+      try {
+        const parsed = JSON.parse(current || "{}");
+        if (parsed.positionId === previous.positionId) {
+          parsed.employeeCode = next.employeeCode;
+          parsed.positionId = next.positionId;
+        }
+        return JSON.stringify(parsed);
+      } catch {
+        return current;
+      }
+    });
   }, [activeId, profiles]);
 
   useEffect(() => {
@@ -238,8 +284,14 @@ export default function ProfileCv({
     }
     setError("");
     try {
-      await onSave(active.id, draft);
-      setBaseline(JSON.stringify(draft));
+      const saved = await onSave(active.id, draft);
+      const next = {
+        ...draft,
+        employeeCode: saved?.employeeCode || draft.employeeCode,
+        positionId: saved?.positionId ? String(saved.positionId) : draft.positionId,
+      };
+      setDraft(next);
+      setBaseline(JSON.stringify(next));
     } catch (err) {
       setError(err.message || "Không lưu được hồ sơ.");
     }
@@ -358,7 +410,11 @@ export default function ProfileCv({
                 <AvatarPhoto url={profile.avatarUrl} name={profile.fullName} />
                 <span>
                   <strong>{profile.fullName}</strong>
-                  <small>{profile.phoneNumber || profile.username}</small>
+                  <small>
+                    {profile.id === active?.id ? (shownCode || profile.employeeCode || "Chưa có mã") : (profile.employeeCode || "Chưa có mã")}
+                    {" · "}
+                    {profile.positionName || "Chưa có chức vụ"}
+                  </small>
                 </span>
               </button>
             ))}
@@ -396,6 +452,8 @@ export default function ProfileCv({
                     {active?.accountFullName ? ` · ${active.accountFullName}` : ""}
                   </p>
                   <div className="cv-chips">
+                    <span>{shownCode || "Chưa có mã"}</span>
+                    <span>{activePosition?.name || "Chưa có chức vụ"}</span>
                     <span>{optionLabel(genderOptions, draft.gender)}</span>
                     <span>{optionLabel(maritalOptions, draft.maritalStatus)}</span>
                   </div>
@@ -444,6 +502,19 @@ export default function ProfileCv({
                       </span>
                       {block.title}
                     </h3>
+                    {block.id === "job" ? (
+                      <ProfileJobFields
+                        positionId={draft.positionId}
+                        employeeCode={draft.employeeCode}
+                        displayCode={shownCode}
+                        profileId={draft.id}
+                        positions={positions}
+                        profiles={profiles}
+                        disabled={saving || uploading}
+                        onPosition={(value) => patch({ positionId: value })}
+                        onPositions={onPositions}
+                      />
+                    ) : null}
                     {block.fields.map((key) => {
                       const meta = FIELD_META[key];
                       return (

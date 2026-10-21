@@ -16,6 +16,14 @@ public class UserProfileResponse
 
     public string FullName { get; set; } = string.Empty;
 
+    public string EmployeeCode { get; set; } = string.Empty;
+
+    public int? PositionId { get; set; }
+
+    public string? PositionName { get; set; }
+
+    public string? PositionCode { get; set; }
+
     public DateOnly? DateOfBirth { get; set; }
 
     public short Gender { get; set; }
@@ -74,6 +82,10 @@ public class UserProfileResponse
             AccountFullName = profile.User?.FullName,
             UserDeletedAt = profile.User?.DeletedAt,
             FullName = profile.FullName,
+            EmployeeCode = profile.EmployeeCode,
+            PositionId = profile.User?.PositionId,
+            PositionName = profile.User?.Position?.Name,
+            PositionCode = profile.User?.Position?.Code,
             DateOfBirth = profile.DateOfBirth,
             Gender = profile.Gender,
             IdentityNumber = profile.IdentityNumber,

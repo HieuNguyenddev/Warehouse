@@ -1,7 +1,8 @@
 import { useEffect } from "react";
+import AvatarPhoto from "./AvatarPhoto.jsx";
 import Icon from "./Icon.jsx";
 
-export default function DetailDialog({ title, subtitle, initials, fields, actions, onClose }) {
+export default function DetailDialog({ title, subtitle, initials, avatarUrl, fields, actions, onClose }) {
   useEffect(() => {
     const alreadyLocked = document.body.classList.contains("is-locked");
     document.body.classList.add("is-locked");
@@ -31,7 +32,11 @@ export default function DetailDialog({ title, subtitle, initials, fields, action
         onClick={(event) => event.stopPropagation()}
       >
         <div className="modal-head">
-          <span className="avatar detail-avatar">{initials}</span>
+          {avatarUrl ? (
+            <AvatarPhoto url={avatarUrl} name={title} className="avatar detail-avatar" />
+          ) : (
+            <span className="avatar detail-avatar">{initials}</span>
+          )}
           <div>
             <h3 id="detail-title">{title}</h3>
             <p>{subtitle}</p>

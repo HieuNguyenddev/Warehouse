@@ -5,6 +5,7 @@ import { getRoles } from "./api/roles";
 import { clearSession, readSession } from "./api/session";
 import { getUserProfiles } from "./api/userProfiles";
 import { getUsers } from "./api/users";
+import AvatarPhoto from "./components/AvatarPhoto.jsx";
 import FilesPage from "./components/FilesPage.jsx";
 import Icon from "./components/Icon.jsx";
 import LoginPage from "./components/LoginPage.jsx";
@@ -52,6 +53,7 @@ export default function App() {
   const [fileCount, setFileCount] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
+  const [accountAvatar, setAccountAvatar] = useState("");
   const accountRef = useRef(null);
 
   const setRoleTotal = useCallback((count) => setRoleCount(count), []);
@@ -119,12 +121,23 @@ export default function App() {
       setSession(null);
     }
 
+    function onAvatar(event) {
+      if (event.detail?.userId === session?.user?.id) {
+        setAccountAvatar(event.detail.avatarUrl || "");
+      }
+    }
+
     window.addEventListener("auth:logout", onLogout);
-    return () => window.removeEventListener("auth:logout", onLogout);
-  }, []);
+    window.addEventListener("profile:avatar", onAvatar);
+    return () => {
+      window.removeEventListener("auth:logout", onLogout);
+      window.removeEventListener("profile:avatar", onAvatar);
+    };
+  }, [session]);
 
   useEffect(() => {
     if (!session) {
+      setAccountAvatar("");
       return undefined;
     }
 
@@ -158,6 +171,8 @@ export default function App() {
       .then((data) => {
         if (!cancelled && Array.isArray(data)) {
           setProfileCount(data.length);
+          const mine = data.find((profile) => profile.userId === session.user.id);
+          setAccountAvatar(mine?.avatarUrl || "");
         }
       })
       .catch(() => {});
@@ -243,7 +258,11 @@ export default function App() {
               onClick={() => setMenuOpen((open) => !open)}
             >
               <span className="avatar">
-                {initials || "?"}
+                {accountAvatar ? (
+                  <AvatarPhoto url={accountAvatar} name={session.user.fullName} className="avatar-face" />
+                ) : (
+                  initials || "?"
+                )}
                 <span
                   className={online ? "presence is-online" : "presence"}
                   title={online ? "Đang trực tuyến" : "Ngoại tuyến"}

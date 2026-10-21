@@ -128,6 +128,13 @@ public class AppDbContext : DbContext
                 .HasMaxLength(150)
                 .IsRequired();
 
+            entity.Property(profile => profile.EmployeeCode)
+                .HasMaxLength(16)
+                .IsRequired();
+
+            entity.HasIndex(profile => profile.EmployeeCode)
+                .IsUnique();
+
             entity.Property(profile => profile.Gender)
                 .HasDefaultValue((short)0);
 

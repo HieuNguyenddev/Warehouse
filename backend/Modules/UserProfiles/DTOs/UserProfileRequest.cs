@@ -7,6 +7,8 @@ public class UserProfileRequest
     [Range(1, int.MaxValue, ErrorMessage = "Người dùng không hợp lệ.")]
     public int UserId { get; set; }
 
+    public int? PositionId { get; set; }
+
     [Required(ErrorMessage = "Họ tên không được để trống.")]
     [StringLength(150, ErrorMessage = "Họ tên tối đa 150 ký tự.")]
     public string FullName { get; set; } = string.Empty;

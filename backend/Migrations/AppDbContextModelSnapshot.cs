@@ -138,6 +138,11 @@ namespace RoleManagement.Api.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<string>("EmployeeCode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<string>("Ethnicity")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
@@ -209,6 +214,9 @@ namespace RoleManagement.Api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("EmployeeCode")
                         .IsUnique();
 
                     b.HasIndex("IdentityNumber")

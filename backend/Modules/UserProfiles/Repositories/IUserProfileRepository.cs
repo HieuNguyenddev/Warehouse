@@ -6,6 +6,8 @@ public interface IUserProfileRepository
 {
     Task<IReadOnlyList<UserProfile>> ListAsync(CancellationToken cancellationToken = default);
 
+    Task AlignEmployeeCodesAsync(CancellationToken cancellationToken = default);
+
     Task<UserProfile?> FindAsync(int id, CancellationToken cancellationToken = default);
 
     Task<UserProfile?> FindTrackedAsync(int id, CancellationToken cancellationToken = default);
@@ -15,6 +17,8 @@ public interface IUserProfileRepository
     Task<bool> IdentityExistsAsync(string identityNumber, int? exceptId = null, CancellationToken cancellationToken = default);
 
     Task<bool> EmailExistsAsync(string email, int? exceptId = null, CancellationToken cancellationToken = default);
+
+    Task<string> NextEmployeeCodeAsync(string prefix, CancellationToken cancellationToken = default);
 
     Task AddAsync(UserProfile profile, CancellationToken cancellationToken = default);
 

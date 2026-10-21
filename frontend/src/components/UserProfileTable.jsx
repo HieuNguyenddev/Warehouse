@@ -1,4 +1,5 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import AvatarPhoto from "./AvatarPhoto.jsx";
 import DetailDialog from "./DetailDialog.jsx";
 import Icon from "./Icon.jsx";
 import { formatDateTime, formatDay, genderOptions, maritalOptions, optionLabel } from "./profileLabels.js";
@@ -13,6 +14,14 @@ function initials(name) {
 
 function show(value) {
   return value ? value : "—";
+}
+
+function ProfileMark({ profile }) {
+  if (!profile.avatarUrl) {
+    return <span className="avatar">{initials(profile.fullName)}</span>;
+  }
+
+  return <AvatarPhoto url={profile.avatarUrl} name={profile.fullName} className="avatar" />;
 }
 
 function Skeleton() {
@@ -40,6 +49,15 @@ export default function UserProfileTable({
 }) {
   const [selected, setSelected] = useState(null);
   const closeDetail = useCallback(() => setSelected(null), []);
+
+  useEffect(() => {
+    setSelected((current) => {
+      if (!current) {
+        return null;
+      }
+      return profiles.find((item) => item.id === current.id) || null;
+    });
+  }, [profiles]);
 
   if (loading && profiles.length === 0 && !query) {
     return <Skeleton />;
@@ -91,10 +109,10 @@ export default function UserProfileTable({
             onClick={() => setSelected(profile)}
           >
             <div className="role-id">
-              <span className="avatar">{initials(profile.fullName)}</span>
+              <ProfileMark profile={profile} />
               <div>
-                <strong>{profile.fullName}</strong>
-                <span className="meta">@{profile.username} · {optionLabel(genderOptions, profile.gender)}{placeLabel(profile) ? ` · ${placeLabel(profile)}` : ""}</span>
+                <strong>{profile.fullName} <span className="role-badge">{profile.employeeCode || "Chưa có mã"}</span></strong>
+                <span className="meta">@{profile.username} · {profile.positionName || "Chưa có chức vụ"}</span>
               </div>
             </div>
             <p className="clamp">{profile.phoneNumber || profile.email || "Chưa có liên hệ"}</p>
@@ -106,6 +124,7 @@ export default function UserProfileTable({
           <thead>
             <tr>
               <th>Hồ sơ</th>
+              <th>Mã nhân viên</th>
               <th>Giới tính</th>
               <th>Liên hệ</th>
               <th>CCCD</th>
@@ -121,12 +140,15 @@ export default function UserProfileTable({
               >
                 <td>
                   <div className="role-id">
-                    <span className="avatar">{initials(profile.fullName)}</span>
+                    <ProfileMark profile={profile} />
                     <div>
-                      <strong>{profile.fullName}</strong>
-                      <span className="meta">@{profile.username}{placeLabel(profile) ? ` · ${placeLabel(profile)}` : ""}{profile.userDeletedAt ? " · tài khoản đã xóa" : ""}</span>
+                      <strong>{profile.fullName} <span className="role-badge">{profile.employeeCode || "Chưa có mã"}</span></strong>
+                      <span className="meta">@{profile.username} · {profile.positionName || "Chưa có chức vụ"}{placeLabel(profile) ? ` · ${placeLabel(profile)}` : ""}{profile.userDeletedAt ? " · tài khoản đã xóa" : ""}</span>
                     </div>
                   </div>
+                </td>
+                <td>
+                  <strong>{profile.employeeCode || "—"}</strong>
                 </td>
                 <td>
                   <span className="role-badge">{optionLabel(genderOptions, profile.gender)}</span>
@@ -156,10 +178,13 @@ export default function UserProfileTable({
       {selected ? (
         <DetailDialog
           title={selected.fullName}
-          subtitle={`@${selected.username}`}
+          subtitle={`${selected.employeeCode || "Chưa có mã"} · @${selected.username}`}
           initials={initials(selected.fullName)}
+          avatarUrl={selected.avatarUrl}
           onClose={closeDetail}
           fields={[
+            { label: "Mã nhân viên", value: show(selected.employeeCode) },
+            { label: "Chức vụ", value: show(selected.positionName) },
             { label: "Họ tên", value: selected.fullName },
             { label: "Tài khoản", value: `@${selected.username}` },
             { label: "Tên trên tài khoản", value: show(selected.accountFullName) },

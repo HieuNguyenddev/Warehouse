@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { uploadAvatar } from "../api/userProfiles";
 import AvatarPhoto from "./AvatarPhoto.jsx";
 import Icon from "./Icon.jsx";
-import { genderOptions, maritalOptions } from "./profileLabels.js";
+import ProfileJobFields from "./ProfileJobFields.jsx";
+import { employeePrefix, genderOptions, maritalOptions } from "./profileLabels.js";
 
 function Field({ icon, label, children, hint, warn }) {
   return (
@@ -30,10 +31,15 @@ export default function UserProfileForm({
   wards = [],
   placesError = "",
   placesLoading = false,
+  positions = [],
+  profiles = [],
+  onPositions,
 }) {
   const nameRef = useRef(null);
   const fileRef = useRef(null);
   const isEdit = editingId != null;
+  const selectedPosition = positions.find((item) => String(item.id) === String(form.positionId));
+  const positionReady = Boolean(employeePrefix(selectedPosition?.code));
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [uploadNotice, setUploadNotice] = useState("");
@@ -138,6 +144,20 @@ export default function UserProfileForm({
             ))}
           </select>
         </Field>
+      </section>
+
+      <section className="form-section">
+        <h4>Công việc</h4>
+        <ProfileJobFields
+          positionId={form.positionId}
+          employeeCode={form.employeeCode}
+          profileId={editingId}
+          positions={positions}
+          profiles={profiles}
+          disabled={saving || uploading}
+          onPosition={(value) => set({ positionId: value })}
+          onPositions={onPositions}
+        />
       </section>
 
       <section className="form-section">
@@ -282,7 +302,7 @@ export default function UserProfileForm({
           <Icon name="fa-xmark" />
           Hủy
         </button>
-        <button type="submit" className="primary" disabled={saving || uploading || form.fullName.trim() === "" || form.userId === ""}>
+        <button type="submit" className="primary" disabled={saving || uploading || form.fullName.trim() === "" || form.userId === "" || !positionReady}>
           <Icon name={saving ? "fa-spinner fa-spin" : isEdit ? "fa-check" : "fa-plus"} />
           {saving ? "Đang lưu…" : isEdit ? "Lưu hồ sơ" : "Tạo hồ sơ"}
         </button>

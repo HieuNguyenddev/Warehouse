@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { getPositions } from "../api/positions";
 import { getUsers } from "../api/users";
 import { createUserProfile, deleteUserProfile, getUserProfiles, updateUserProfile } from "../api/userProfiles";
 import Icon from "./Icon.jsx";
 import Pager, { slicePage } from "./Pager.jsx";
-import { emptyProfileForm, formToPayload, profileToForm } from "./profileLabels.js";
+import { alignEmployeeCodes, emptyProfileForm, formToPayload, profileToForm } from "./profileLabels.js";
 import ProfileBoard from "./ProfileBoard.jsx";
 import ProfileCv from "./ProfileCv.jsx";
 import UserProfileForm from "./UserProfileForm.jsx";
@@ -29,6 +30,7 @@ function readOrder() {
 
 export default function UserProfilesPage({ onCount }) {
   const [profiles, setProfiles] = useState([]);
+  const [positions, setPositions] = useState([]);
   const [users, setUsers] = useState([]);
   const [form, setForm] = useState(emptyProfileForm);
   const [editingId, setEditingId] = useState(null);
@@ -48,14 +50,41 @@ export default function UserProfilesPage({ onCount }) {
   const [cvProfileId, setCvProfileId] = useState(null);
   const [cvProvince, setCvProvince] = useState("");
 
+  const applyProfile = useCallback((saved) => {
+    if (!saved?.id) {
+      return;
+    }
+
+    setProfiles((current) => {
+      const next = current.some((item) => item.id === saved.id)
+        ? current.map((item) => (item.id === saved.id ? { ...item, ...saved } : item))
+        : [...current, saved];
+      return next.sort((left, right) => String(left.fullName).localeCompare(String(right.fullName), "vi") || left.id - right.id);
+    });
+    window.dispatchEvent(new CustomEvent("profile:avatar", {
+      detail: { userId: saved.userId, avatarUrl: saved.avatarUrl || "" },
+    }));
+  }, []);
+
   const loadProfiles = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const [profileData, userData] = await Promise.all([getUserProfiles(), getUsers()]);
+      const [profileData, userData, positionData] = await Promise.all([getUserProfiles(), getUsers(), getPositions()]);
       const list = Array.isArray(profileData) ? profileData : [];
-      setProfiles(list);
+      setProfiles((current) => list.map((item) => {
+        const previous = current.find((profile) => profile.id === item.id);
+        return {
+          ...previous,
+          ...item,
+          employeeCode: item.employeeCode || previous?.employeeCode || "",
+          positionId: item.positionId ?? previous?.positionId ?? null,
+          positionName: item.positionName || previous?.positionName || "",
+          positionCode: item.positionCode || previous?.positionCode || "",
+        };
+      }));
       setUsers(Array.isArray(userData) ? userData : []);
+      setPositions(Array.isArray(positionData) ? positionData : []);
       onCount(list.length);
     } catch (err) {
       setError(err.message || "Không tải được danh sách hồ sơ.");
@@ -128,18 +157,26 @@ export default function UserProfilesPage({ onCount }) {
     window.localStorage.setItem(ORDER_KEY, JSON.stringify(order));
   }, [order]);
 
+  const alignedProfiles = useMemo(
+    () => alignEmployeeCodes(profiles, positions),
+    [profiles, positions],
+  );
+
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) {
-      return profiles;
+      return alignedProfiles;
     }
-    return profiles.filter((profile) =>
+    return alignedProfiles.filter((profile) =>
       [
         profile.fullName,
         profile.username,
         profile.phoneNumber,
         profile.email,
         profile.identityNumber,
+        profile.employeeCode,
+        profile.positionName,
+        profile.positionCode,
         profile.address,
         places.placeLabel(profile),
       ]
@@ -147,7 +184,7 @@ export default function UserProfilesPage({ onCount }) {
         .toLowerCase()
         .includes(needle),
     );
-  }, [profiles, query, places]);
+  }, [alignedProfiles, query, places]);
 
   const boardProfiles = useMemo(() => {
     const rank = new Map(order.map((id, index) => [id, index]));
@@ -206,9 +243,11 @@ export default function UserProfilesPage({ onCount }) {
   async function saveCv(id, draft) {
     setSaving(true);
     try {
-      await updateUserProfile(id, formToPayload(draft));
-      setNotice("Đã cập nhật hồ sơ.");
+      const saved = await updateUserProfile(id, formToPayload(draft));
+      applyProfile(saved);
+      setNotice(saved?.employeeCode ? `Đã cập nhật hồ sơ. Mã nhân viên ${saved.employeeCode}.` : "Đã cập nhật hồ sơ.");
       await loadProfiles();
+      return saved;
     } finally {
       setSaving(false);
     }
@@ -233,13 +272,13 @@ export default function UserProfilesPage({ onCount }) {
     const payload = formToPayload(form);
 
     try {
-      if (editingId == null) {
-        await createUserProfile(payload);
-        setNotice("Đã tạo hồ sơ mới.");
-      } else {
-        await updateUserProfile(editingId, payload);
-        setNotice("Đã cập nhật hồ sơ.");
-      }
+      const saved = editingId == null
+        ? await createUserProfile(payload)
+        : await updateUserProfile(editingId, payload);
+      applyProfile(saved);
+      setNotice(saved?.employeeCode
+        ? `${editingId == null ? "Đã tạo hồ sơ" : "Đã cập nhật hồ sơ"}. Mã nhân viên ${saved.employeeCode}.`
+        : (editingId == null ? "Đã tạo hồ sơ mới." : "Đã cập nhật hồ sơ."));
       setFormOpen(false);
       resetForm();
       await loadProfiles();
@@ -433,6 +472,8 @@ export default function UserProfilesPage({ onCount }) {
           onCreate={openCreate}
           onClose={() => setCvOpen(false)}
           blocked={formOpen || Boolean(pendingDelete)}
+          positions={positions}
+          onPositions={setPositions}
         />
       ) : null}
 
@@ -458,6 +499,9 @@ export default function UserProfilesPage({ onCount }) {
               wards={places.wards}
               placesError={places.error}
               placesLoading={places.loading}
+              positions={positions}
+              profiles={alignedProfiles}
+              onPositions={setPositions}
             />
           </div>
         </div>
