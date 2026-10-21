@@ -16,6 +16,8 @@ public interface IUserRepository
 
     Task<bool> AnyInRoleAsync(int roleId, CancellationToken cancellationToken = default);
 
+    Task<bool> AnyInPositionAsync(int positionId, CancellationToken cancellationToken = default);
+
     Task AddAsync(User user, CancellationToken cancellationToken = default);
 
     Task SaveAsync(CancellationToken cancellationToken = default);

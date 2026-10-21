@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getPositions } from "./api/positions";
 import { getRoles } from "./api/roles";
 import { clearSession, readSession } from "./api/session";
 import { getUsers } from "./api/users";
 import Icon from "./components/Icon.jsx";
 import LoginPage from "./components/LoginPage.jsx";
+import PositionsPage from "./components/PositionsPage.jsx";
 import RolesPage from "./components/RolesPage.jsx";
 import UsersPage from "./components/UsersPage.jsx";
 
@@ -40,12 +42,14 @@ export default function App() {
   );
   const [theme, setTheme] = useState(readTheme);
   const [roleCount, setRoleCount] = useState(0);
+  const [positionCount, setPositionCount] = useState(0);
   const [userCount, setUserCount] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
   const accountRef = useRef(null);
 
   const setRoleTotal = useCallback((count) => setRoleCount(count), []);
+  const setPositionTotal = useCallback((count) => setPositionCount(count), []);
   const setUserTotal = useCallback((count) => setUserCount(count), []);
   const openRoles = useCallback(() => {
     setPage("roles");
@@ -122,6 +126,14 @@ export default function App() {
       .then((data) => {
         if (!cancelled && Array.isArray(data)) {
           setRoleCount(data.length);
+        }
+      })
+      .catch(() => {});
+
+    getPositions()
+      .then((data) => {
+        if (!cancelled && Array.isArray(data)) {
+          setPositionCount(data.length);
         }
       })
       .catch(() => {});
@@ -281,6 +293,17 @@ export default function App() {
             </button>
             <button
               type="button"
+              className={page === "positions" ? "nav-item is-active" : "nav-item"}
+              aria-current={page === "positions" ? "page" : undefined}
+              title={collapsed ? "Chức vụ" : undefined}
+              onClick={() => openPage("positions")}
+            >
+              <Icon name="fa-briefcase" />
+              <span>Chức vụ</span>
+              <em>{positionCount}</em>
+            </button>
+            <button
+              type="button"
               className={page === "users" ? "nav-item is-active" : "nav-item"}
               aria-current={page === "users" ? "page" : undefined}
               title={collapsed ? "Người dùng" : undefined}
@@ -300,6 +323,8 @@ export default function App() {
 
         {page === "users" ? (
           <UsersPage onCount={setUserTotal} onOpenRoles={openRoles} />
+        ) : page === "positions" ? (
+          <PositionsPage onCount={setPositionTotal} />
         ) : (
           <RolesPage onCount={setRoleTotal} />
         )}

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using RoleManagement.Api.Modules.Positions.Entities;
 using RoleManagement.Api.Modules.Roles.Entities;
 using RoleManagement.Api.Modules.Users.Entities;
 
@@ -12,6 +13,8 @@ public class AppDbContext : DbContext
     }
 
     public DbSet<Role> Roles => Set<Role>();
+
+    public DbSet<Position> Positions => Set<Position>();
 
     public DbSet<User> Users => Set<User>();
 
@@ -36,6 +39,35 @@ public class AppDbContext : DbContext
                 .HasMaxLength(250);
 
             entity.Property(role => role.CreatedAt)
+                .IsRequired();
+        });
+
+        modelBuilder.Entity<Position>(entity =>
+        {
+            entity.ToTable("Positions");
+
+            entity.HasKey(position => position.Id);
+
+            entity.Property(position => position.Name)
+                .HasMaxLength(80)
+                .IsRequired();
+
+            entity.HasIndex(position => position.Name)
+                .IsUnique();
+
+            entity.Property(position => position.Code)
+                .HasMaxLength(20);
+
+            entity.HasIndex(position => position.Code)
+                .IsUnique();
+
+            entity.Property(position => position.Rank)
+                .HasDefaultValue(0);
+
+            entity.Property(position => position.Description)
+                .HasMaxLength(250);
+
+            entity.Property(position => position.CreatedAt)
                 .IsRequired();
         });
 
@@ -75,6 +107,11 @@ public class AppDbContext : DbContext
             entity.HasOne(user => user.Role)
                 .WithMany()
                 .HasForeignKey(user => user.RoleId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(user => user.Position)
+                .WithMany()
+                .HasForeignKey(user => user.PositionId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

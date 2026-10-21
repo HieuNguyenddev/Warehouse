@@ -8,6 +8,7 @@ public enum UserError
     NotFound,
     DuplicateUsername,
     RoleNotFound,
+    PositionNotFound,
     InvalidPassword,
     Protected,
 }
@@ -40,6 +41,11 @@ public class UserResult
     public static UserResult RoleNotFound(string message)
     {
         return new UserResult { Error = UserError.RoleNotFound, Message = message };
+    }
+
+    public static UserResult PositionNotFound(string message)
+    {
+        return new UserResult { Error = UserError.PositionNotFound, Message = message };
     }
 
     public static UserResult InvalidPassword(string message)

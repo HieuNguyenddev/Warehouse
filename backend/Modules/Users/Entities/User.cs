@@ -1,3 +1,4 @@
+using RoleManagement.Api.Modules.Positions.Entities;
 using RoleManagement.Api.Modules.Roles.Entities;
 
 namespace RoleManagement.Api.Modules.Users.Entities;
@@ -15,6 +16,10 @@ public class User
     public int RoleId { get; set; }
 
     public Role Role { get; set; } = null!;
+
+    public int? PositionId { get; set; }
+
+    public Position? Position { get; set; }
 
     public bool IsLocked { get; set; }
 

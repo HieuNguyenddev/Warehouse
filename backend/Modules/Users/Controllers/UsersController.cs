@@ -115,6 +115,7 @@ public class UsersController : ControllerBase
             UserError.NotFound => NotFound(message),
             UserError.DuplicateUsername => Conflict(message),
             UserError.RoleNotFound => BadRequest(message),
+            UserError.PositionNotFound => BadRequest(message),
             UserError.InvalidPassword => BadRequest(message),
             UserError.Protected => Conflict(message),
             _ => StatusCode(StatusCodes.Status500InternalServerError, message),

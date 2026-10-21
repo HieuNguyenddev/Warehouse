@@ -18,6 +18,7 @@ public class UserRepository : IUserRepository
         return await _context.Users
             .AsNoTracking()
             .Include(user => user.Role)
+            .Include(user => user.Position)
             .OrderBy(user => user.Id)
             .ToListAsync(cancellationToken);
     }
@@ -27,6 +28,7 @@ public class UserRepository : IUserRepository
         return _context.Users
             .AsNoTracking()
             .Include(user => user.Role)
+            .Include(user => user.Position)
             .FirstOrDefaultAsync(user => user.Id == id, cancellationToken);
     }
 
@@ -40,6 +42,7 @@ public class UserRepository : IUserRepository
     {
         return _context.Users
             .Include(user => user.Role)
+            .Include(user => user.Position)
             .FirstOrDefaultAsync(user => user.Username == username, cancellationToken);
     }
 
@@ -57,6 +60,13 @@ public class UserRepository : IUserRepository
     {
         return _context.Users.AnyAsync(
             user => user.RoleId == roleId && user.DeletedAt == null,
+            cancellationToken);
+    }
+
+    public Task<bool> AnyInPositionAsync(int positionId, CancellationToken cancellationToken = default)
+    {
+        return _context.Users.AnyAsync(
+            user => user.PositionId == positionId && user.DeletedAt == null,
             cancellationToken);
     }
 

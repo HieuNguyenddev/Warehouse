@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { getPositions } from "../api/positions";
 import { getRoles } from "../api/roles";
 import { changePassword, createUser, deleteUser, getUsers, setUserLock, updateUser } from "../api/users";
 import Icon from "./Icon.jsx";
@@ -7,12 +8,13 @@ import PasswordForm from "./PasswordForm.jsx";
 import UserForm from "./UserForm.jsx";
 import UserTable from "./UserTable.jsx";
 
-const emptyForm = { username: "", fullName: "", password: "", roleId: "" };
+const emptyForm = { username: "", fullName: "", password: "", roleId: "", positionId: "" };
 const emptyPassword = { currentPassword: "", newPassword: "", confirmPassword: "" };
 
 export default function UsersPage({ onCount, onOpenRoles }) {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [positions, setPositions] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [passwordForm, setPasswordForm] = useState(emptyPassword);
   const [editingId, setEditingId] = useState(null);
@@ -35,10 +37,15 @@ export default function UsersPage({ onCount, onOpenRoles }) {
     setLoading(true);
     setError("");
     try {
-      const [userData, roleData] = await Promise.all([getUsers(), getRoles()]);
+      const [userData, roleData, positionData] = await Promise.all([
+        getUsers(),
+        getRoles(),
+        getPositions(),
+      ]);
       const list = Array.isArray(userData) ? userData : [];
       setUsers(list);
       setRoles(Array.isArray(roleData) ? roleData : []);
+      setPositions(Array.isArray(positionData) ? positionData : []);
       onCount(list.length);
     } catch (err) {
       setError(err.message || "Không tải được danh sách người dùng.");
@@ -85,7 +92,7 @@ export default function UsersPage({ onCount, onOpenRoles }) {
     const needle = query.trim().toLowerCase();
     const list = needle
       ? users.filter((user) =>
-          `${user.username || ""} ${user.fullName || ""} ${user.roleName || ""} ${user.lastLoginIp || ""} ${user.isLocked ? "khóa" : ""} ${user.deletedAt ? "xóa" : ""}`
+          `${user.username || ""} ${user.fullName || ""} ${user.roleName || ""} ${user.positionName || ""} ${user.lastLoginIp || ""} ${user.isLocked ? "khóa" : ""} ${user.deletedAt ? "xóa" : ""}`
             .toLowerCase()
             .includes(needle),
         )
@@ -140,6 +147,7 @@ export default function UsersPage({ onCount, onOpenRoles }) {
       fullName: user.fullName || "",
       password: "",
       roleId: user.roleId ? String(user.roleId) : "",
+      positionId: user.positionId ? String(user.positionId) : "",
     });
     setFormError("");
     setFormOpen(true);
@@ -160,6 +168,7 @@ export default function UsersPage({ onCount, onOpenRoles }) {
       username: form.username.trim(),
       fullName: form.fullName.trim(),
       roleId: Number(form.roleId),
+      positionId: form.positionId ? Number(form.positionId) : null,
     };
 
     try {
@@ -261,7 +270,7 @@ export default function UsersPage({ onCount, onOpenRoles }) {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Tìm theo tên, vai trò hoặc IP"
+            placeholder="Tìm theo tên, vai trò, chức vụ hoặc IP"
             aria-label="Tìm người dùng"
           />
           {query ? (
@@ -372,6 +381,7 @@ export default function UsersPage({ onCount, onOpenRoles }) {
             <UserForm
               form={form}
               roles={roles}
+              positions={positions}
               editingId={editingId}
               saving={saving}
               error={formError}

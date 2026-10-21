@@ -22,6 +22,49 @@ namespace RoleManagement.Api.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("RoleManagement.Api.Modules.Positions.Entities.Position", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("Rank")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Positions", (string)null);
+                });
+
             modelBuilder.Entity("RoleManagement.Api.Modules.Roles.Entities.Role", b =>
                 {
                     b.Property<int>("Id")
@@ -94,6 +137,9 @@ namespace RoleManagement.Api.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<int?>("PositionId")
+                        .HasColumnType("integer");
+
                     b.Property<int>("RoleId")
                         .HasColumnType("integer");
 
@@ -107,6 +153,8 @@ namespace RoleManagement.Api.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("PositionId");
+
                     b.HasIndex("RoleId");
 
                     b.HasIndex("Username")
@@ -117,11 +165,18 @@ namespace RoleManagement.Api.Migrations
 
             modelBuilder.Entity("RoleManagement.Api.Modules.Users.Entities.User", b =>
                 {
+                    b.HasOne("RoleManagement.Api.Modules.Positions.Entities.Position", "Position")
+                        .WithMany()
+                        .HasForeignKey("PositionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("RoleManagement.Api.Modules.Roles.Entities.Role", "Role")
                         .WithMany()
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Position");
 
                     b.Navigation("Role");
                 });

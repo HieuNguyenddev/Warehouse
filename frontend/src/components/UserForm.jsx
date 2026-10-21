@@ -5,6 +5,7 @@ import PasswordField from "./PasswordField.jsx";
 export default function UserForm({
   form,
   roles,
+  positions = [],
   editingId,
   saving,
   error,
@@ -108,6 +109,24 @@ export default function UserForm({
           {roles.map((role) => (
             <option key={role.id} value={role.id}>
               {role.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="field">
+        <span className="field-label">
+          <Icon name="fa-briefcase" />
+          Chức vụ
+        </span>
+        <select
+          value={form.positionId}
+          onChange={(event) => onChange({ ...form, positionId: event.target.value })}
+        >
+          <option value="">Không gán chức vụ</option>
+          {positions.map((position) => (
+            <option key={position.id} value={position.id}>
+              {position.code ? `${position.name} (${position.code})` : position.name}
             </option>
           ))}
         </select>

@@ -133,6 +133,7 @@ export default function UserTable({
               </div>
               <p>
                 <span className="role-badge">{user.roleName || "Chưa có vai trò"}</span>{" "}
+                <span className="meta">{user.positionName || "Chưa có chức vụ"}</span>{" "}
                 <span className={`status-pill is-${accountStatus(user).tone}`}>{accountStatus(user).label}</span>
               </p>
               <div className="card-meta">
@@ -162,7 +163,7 @@ export default function UserTable({
           <thead>
             <tr>
               <th>Người dùng</th>
-              <th>Vai trò</th>
+              <th>Vai trò / chức vụ</th>
               <th>Trạng thái</th>
               <th>Đăng nhập</th>
               <th>Thời gian</th>
@@ -191,7 +192,10 @@ export default function UserTable({
                     </div>
                   </td>
                   <td>
-                    <span className="role-badge">{user.roleName || "Chưa có vai trò"}</span>
+                    <div className="cell-stack">
+                      <span className="role-badge">{user.roleName || "Chưa có vai trò"}</span>
+                      <span>{user.positionName || "Chưa có chức vụ"}</span>
+                    </div>
                   </td>
                   <td>
                     <span className={`status-pill is-${accountStatus(user).tone}`}>{accountStatus(user).label}</span>
@@ -226,6 +230,7 @@ export default function UserTable({
             { label: "Họ tên", value: selected.fullName || "—" },
             { label: "Tên đăng nhập", value: selected.username || "—" },
             { label: "Vai trò", value: selected.roleName || "Chưa có vai trò" },
+            { label: "Chức vụ", value: selected.positionName || "Chưa có chức vụ" },
             { label: "Trạng thái", value: accountStatus(selected).label },
             { label: "Số lần đăng nhập sai", value: String(selected.failedLoginCount || 0) },
             { label: "Lần đăng nhập cuối", value: selected.lastLoginAt ? formatDate(selected.lastLoginAt) : "Chưa đăng nhập" },

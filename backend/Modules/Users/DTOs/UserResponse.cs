@@ -14,6 +14,10 @@ public class UserResponse
 
     public string RoleName { get; set; } = string.Empty;
 
+    public int? PositionId { get; set; }
+
+    public string? PositionName { get; set; }
+
     public bool IsLocked { get; set; }
 
     public int FailedLoginCount { get; set; }
@@ -37,6 +41,8 @@ public class UserResponse
             FullName = user.FullName,
             RoleId = user.RoleId,
             RoleName = user.Role?.Name ?? string.Empty,
+            PositionId = user.PositionId,
+            PositionName = user.Position?.Name,
             IsLocked = user.IsLocked,
             FailedLoginCount = user.FailedLoginCount,
             LastLoginAt = user.LastLoginAt,

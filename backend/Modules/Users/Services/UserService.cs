@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using RoleManagement.Api.Modules.Auth;
+using RoleManagement.Api.Modules.Positions.Repositories;
 using RoleManagement.Api.Modules.Roles.Repositories;
 using RoleManagement.Api.Modules.Users.DTOs;
 using RoleManagement.Api.Modules.Users.Entities;
@@ -12,17 +13,20 @@ public class UserService : IUserService
 {
     private readonly IUserRepository _users;
     private readonly IRoleRepository _roles;
+    private readonly IPositionRepository _positions;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly SeedOptions _seed;
 
     public UserService(
         IUserRepository users,
         IRoleRepository roles,
+        IPositionRepository positions,
         IPasswordHasher<User> passwordHasher,
         IOptions<SeedOptions> seed)
     {
         _users = users;
         _roles = roles;
+        _positions = positions;
         _passwordHasher = passwordHasher;
         _seed = seed.Value;
     }
@@ -65,11 +69,18 @@ public class UserService : IUserService
             return UserResult.RoleNotFound($"Không tìm thấy vai trò có ID = {request.RoleId}.");
         }
 
+        var position = await ResolvePositionAsync(request.PositionId, cancellationToken);
+        if (position.Error != null)
+        {
+            return position.Error;
+        }
+
         var user = new User
         {
             Username = username,
             FullName = fullName,
             RoleId = role.Id,
+            PositionId = position.Id,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = null,
         };
@@ -104,6 +115,12 @@ public class UserService : IUserService
             return UserResult.RoleNotFound($"Không tìm thấy vai trò có ID = {request.RoleId}.");
         }
 
+        var position = await ResolvePositionAsync(request.PositionId, cancellationToken);
+        if (position.Error != null)
+        {
+            return position.Error;
+        }
+
         if (IsSeedAdmin(user))
         {
             if (username != user.Username)
@@ -120,6 +137,7 @@ public class UserService : IUserService
         user.Username = username;
         user.FullName = request.FullName.Trim();
         user.RoleId = role.Id;
+        user.PositionId = position.Id;
         user.UpdatedAt = DateTime.UtcNow;
         await _users.SaveAsync(cancellationToken);
 
@@ -212,6 +230,24 @@ public class UserService : IUserService
         user.UpdatedAt = user.DeletedAt;
         await _users.SaveAsync(cancellationToken);
         return UserResult.Ok();
+    }
+
+    private async Task<(int? Id, UserResult? Error)> ResolvePositionAsync(
+        int? positionId,
+        CancellationToken cancellationToken)
+    {
+        if (positionId == null)
+        {
+            return (null, null);
+        }
+
+        var position = await _positions.FindAsync(positionId.Value, cancellationToken);
+        if (position == null)
+        {
+            return (null, UserResult.PositionNotFound($"Không tìm thấy chức vụ có ID = {positionId}."));
+        }
+
+        return (position.Id, null);
     }
 
     private bool IsSeedAdmin(User user)

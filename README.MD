@@ -2,7 +2,7 @@
 
 API ASP.NET Core (.NET 10), admin React, PostgreSQL 16 và Nginx, chạy bằng Docker Compose trong `backend`. Mỗi lần đẩy lên nhánh `main`, GitHub Actions SSH vào VPS, `git pull` rồi `docker compose up -d --build` để build lại cả API và frontend. Nginx đưa `admin.minhhieudev.id.vn` tới container frontend và `api.minhhieudev.id.vn` tới API.
 
-Máy chủ là **Ubuntu 24.04** trên VMware Fusion, card mạng **Bridged Networking → Autodetect**. Các lệnh dưới đây chạy bằng user `root`.
+Máy chủ là **Ubuntu 24.04** trên VMware Fusion, card mạng **Bridged Networking → Autodetect**. Các lệnh dưới đây chạy bằng user `root`. Cách chạy API trên máy đang sửa mã nằm ở mục 12.
 
 | Thông số | Giá trị |
 | --- | --- |
@@ -650,3 +650,57 @@ curl -I https://admin.minhhieudev.id.vn/
 - HTTPS trả **200**. Trình duyệt mở `https://admin.minhhieudev.id.vn`.
 
 Gia hạn dùng chung hook ở mục 10.6. `certbot renew` gia hạn mọi chứng chỉ trên máy, rồi reload Nginx.
+
+## 12. Chạy backend trên máy phát triển
+
+API nằm trong thư mục `backend`. Một lệnh bật PostgreSQL trong Docker rồi chạy API bằng `dotnet run` tại `http://localhost:5252`. Stack đầy đủ (API, frontend, Nginx) là cách chạy trên VPS ở mục 5. Compose không đưa cổng `8080` của API ra máy thật, nên không dùng `docker compose up api` để mở Swagger.
+
+Cần .NET SDK 10 và Docker. `dotnet --version` phải in số bắt đầu bằng `10.`.
+
+macOS:
+
+```bash
+brew install dotnet@10
+dotnet --version
+```
+
+- `brew install dotnet@10` cài SDK 10. `RoleManagement.Api.csproj` khai báo `net10.0`. SDK thấp hơn không build được.
+- `dotnet --version` in phiên bản SDK đang dùng. Số phải bắt đầu bằng `10.`.
+
+Ubuntu 24.04 cài `dotnet-sdk-10.0` theo các bước trong `backend/README.MD`.
+
+Đứng ở thư mục gốc repository:
+
+```bash
+./scripts/run-backend.sh
+```
+
+- `./scripts/run-backend.sh` làm lần lượt: đọc `backend/.env`, bật container `postgres`, chờ health `healthy`, ghi chuỗi kết nối vào user secrets, rồi `dotnet run --launch-profile http`.
+- Chưa có `backend/.env` thì script copy từ `.env.example`, in nhắc sửa file, rồi dừng. Sửa xong chạy lại đúng lệnh trên.
+- `POSTGRES_PASSWORD` là mật khẩu user `postgres` của container. `JWT_KEY` là chuỗi tự gõ, ít nhất 32 ký tự, ví dụ `KHOA_TU_DAT_IT_NHAT_32_KY_TU`. `SEED_PASSWORD` là mật khẩu admin lúc tạo tài khoản lần đầu, ví dụ `Admin@123`. `SEED_USERNAME` trong file mẫu là `admin`. Đổi thành `Admin` thì đăng nhập đúng chữ đó.
+- Không thêm khoảng trắng hai bên dấu `=`. Không bọc giá trị bằng dấu nháy. Không để nguyên dòng mẫu `choose-a-long-password` hay `replace-with-at-least-32-random-characters`.
+- Script lấy `POSTGRES_PASSWORD` ghi vào user secrets vì `appsettings.json` không chứa mật khẩu. `dotnet run` đọc `JWT_KEY`, `SEED_USERNAME` và `SEED_PASSWORD` từ `.env`.
+- Volume `postgres-data` đã có thì giữ đúng mật khẩu cũ. Sửa `POSTGRES_PASSWORD` trong `.env` không đổi mật khẩu bên trong volume.
+- Lần chạy đầu, API tạo bảng rồi tạo vai trò `Admin` và tài khoản `SEED_USERNAME` nếu tên đó chưa có. Tài khoản đã có thì sửa `.env` không đổi mật khẩu đang lưu. Giữ terminal này mở. `Ctrl+C` dừng API, container PostgreSQL vẫn chạy.
+
+Swagger: `http://localhost:5252/swagger`. Đăng nhập lấy token, bấm **Authorize**, dán token. Không gõ chữ `Bearer`.
+
+Kiểm tra đăng nhập ở terminal khác. Thay `admin` và `Admin@123` bằng `SEED_USERNAME` và `SEED_PASSWORD` trong `.env`. Tên đăng nhập phân biệt hoa thường.
+
+```bash
+curl -s http://localhost:5252/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"Admin@123"}'
+```
+
+- JSON có `token` nghĩa là PostgreSQL, khóa JWT và tài khoản admin đã dùng được.
+- `GET http://localhost:5252/api/roles` không kèm token trả **401**.
+- Gọi lại kèm header `Authorization: Bearer <token>` thì trả **200** và danh sách vai trò.
+
+Dừng database khi không sửa mã nữa:
+
+```bash
+./scripts/run-backend.sh stop
+```
+
+- `stop` chạy `docker compose stop postgres`. Volume `postgres-data` được giữ. Lần sau `./scripts/run-backend.sh` dùng lại dữ liệu cũ.

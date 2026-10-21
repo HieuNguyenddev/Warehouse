@@ -14,4 +14,7 @@ public class UserUpdateRequest
 
     [Range(1, int.MaxValue, ErrorMessage = "Vai trò không hợp lệ.")]
     public int RoleId { get; set; }
+
+    [Range(1, int.MaxValue, ErrorMessage = "Chức vụ không hợp lệ.")]
+    public int? PositionId { get; set; }
 }
