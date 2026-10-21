@@ -260,6 +260,7 @@ export default function ProfileCv({
     try {
       const result = await uploadAvatar(file);
       patch({ avatarUrl: result?.url || "" });
+      setError("");
     } catch (err) {
       setError(err.message || "Không tải được ảnh.");
     } finally {
@@ -377,7 +378,7 @@ export default function ProfileCv({
                   <AvatarPhoto url={draft.avatarUrl} name={draft.fullName} className="avatar-photo is-large" />
                   <button type="button" className="ghost" onClick={() => fileRef.current?.click()} disabled={uploading || saving}>
                     <Icon name={uploading ? "fa-spinner fa-spin" : "fa-upload"} />
-                    {uploading ? "Đang tải…" : "Ảnh"}
+                    {uploading ? "Đang lưu…" : "Ảnh"}
                   </button>
                   <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={onPickFile} />
                 </div>

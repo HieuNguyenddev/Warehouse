@@ -15,14 +15,16 @@ export function uploadFile(file) {
   });
 }
 
-export function deleteStoredFile(name) {
-  return request(`/api/files/${encodeURIComponent(name)}`, {
+export function deleteStoredFile(file) {
+  const folder = file.folder === "avatars" ? "?folder=avatars" : "";
+  return request(`/api/files/${encodeURIComponent(file.name)}${folder}`, {
     method: "DELETE",
   });
 }
 
-export async function downloadFile(name, fileName) {
-  const response = await fetch(`${apiBase()}/api/files/${encodeURIComponent(name)}`, {
+export async function downloadFile(file) {
+  const path = file.url || `/api/files/${encodeURIComponent(file.name)}`;
+  const response = await fetch(`${apiBase()}${path}`, {
     headers: authHeaders(),
   });
   if (response.status === 401) {
@@ -38,7 +40,7 @@ export async function downloadFile(name, fileName) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = fileName || name;
+  link.download = file.fileName || file.name;
   link.click();
   URL.revokeObjectURL(url);
 }

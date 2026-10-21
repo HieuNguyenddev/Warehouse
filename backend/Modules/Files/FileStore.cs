@@ -15,32 +15,24 @@ public class FileStore
 
     public string ProviderName => _storage.ProviderName;
 
-    public async Task<StoredFileInfo> SaveAsync(IFormFile file, CancellationToken cancellationToken)
+    public Task<WarehouseFile> SaveAsync(IFormFile file, CancellationToken cancellationToken)
     {
-        if (file.Length <= 0 || file.Length > MaxBytes)
-        {
-            throw new InvalidOperationException("Tệp tối đa 8 MB.");
-        }
-
-        await using var input = file.OpenReadStream();
-        using var buffer = new MemoryStream();
-        await input.CopyToAsync(buffer, cancellationToken);
-        var bytes = buffer.ToArray();
-        var extension = FileSignatures.DetectExtension(bytes, Path.GetExtension(file.FileName), imagesOnly: false);
-        if (extension == null || !FileSignatures.ContentTypes.TryGetValue(extension, out var contentType))
-        {
-            throw new InvalidOperationException("Chỉ nhận ảnh JPG, PNG, WEBP, GIF hoặc tệp PDF, TXT, DOCX, XLSX.");
-        }
-
-        var name = $"{Guid.NewGuid():N}{extension}";
-        var fileName = FileSignatures.SafeFileName(file.FileName, extension);
-        await _storage.PutAsync("files/" + name, bytes, contentType, fileName, cancellationToken);
-        return new StoredFileInfo(name, fileName, contentType, bytes.LongLength, DateTime.UtcNow);
+        return SaveCoreAsync(file, imagesOnly: false, MaxBytes, cancellationToken);
     }
 
-    public Task<IReadOnlyList<StoredFileInfo>> ListAsync(CancellationToken cancellationToken)
+    public Task<WarehouseFile> SaveImageAsync(IFormFile file, int maxBytes, CancellationToken cancellationToken)
     {
-        return _storage.ListAsync("files/", cancellationToken);
+        return SaveCoreAsync(file, imagesOnly: true, maxBytes, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<WarehouseFile>> ListAsync(CancellationToken cancellationToken)
+    {
+        var files = await _storage.ListAsync("files/", cancellationToken);
+        var avatars = await _storage.ListAsync("avatars/", cancellationToken);
+        return files.Select(item => WarehouseFile.From(item, "files"))
+            .Concat(avatars.Select(item => WarehouseFile.From(item, "avatars")))
+            .OrderByDescending(item => item.LastModified)
+            .ToList();
     }
 
     public Task<StoredObject?> OpenAsync(string name, CancellationToken cancellationToken)
@@ -54,14 +46,61 @@ public class FileStore
         return _storage.OpenAsync(key, cancellationToken);
     }
 
-    public Task DeleteAsync(string name, CancellationToken cancellationToken)
+    public Task DeleteAsync(string name, string? folder, CancellationToken cancellationToken)
     {
-        var key = "files/" + name;
+        var key = (folder == "avatars" ? "avatars/" : "files/") + name;
         if (!GarageStorage.IsSafeKey(key))
         {
             return Task.CompletedTask;
         }
 
         return _storage.DeleteAsync(key, cancellationToken);
+    }
+
+    private async Task<WarehouseFile> SaveCoreAsync(
+        IFormFile file,
+        bool imagesOnly,
+        int maxBytes,
+        CancellationToken cancellationToken)
+    {
+        if (file.Length <= 0 || file.Length > maxBytes)
+        {
+            throw new InvalidOperationException(imagesOnly ? "Ảnh đại diện tối đa 2 MB." : "Tệp tối đa 8 MB.");
+        }
+
+        await using var input = file.OpenReadStream();
+        using var buffer = new MemoryStream();
+        await input.CopyToAsync(buffer, cancellationToken);
+        var bytes = buffer.ToArray();
+        var extension = FileSignatures.DetectExtension(bytes, Path.GetExtension(file.FileName), imagesOnly);
+        if (extension == null || !FileSignatures.ContentTypes.TryGetValue(extension, out var contentType))
+        {
+            throw new InvalidOperationException(imagesOnly
+                ? "Chỉ nhận ảnh JPG, PNG, WEBP hoặc GIF."
+                : "Chỉ nhận ảnh JPG, PNG, WEBP, GIF hoặc tệp PDF, TXT, DOCX, XLSX.");
+        }
+
+        var name = $"{Guid.NewGuid():N}{extension}";
+        var fileName = FileSignatures.SafeFileName(file.FileName, extension);
+        await _storage.PutAsync("files/" + name, bytes, contentType, fileName, cancellationToken);
+        return WarehouseFile.From(new StoredFileInfo(name, fileName, contentType, bytes.LongLength, DateTime.UtcNow), "files");
+    }
+}
+
+public record WarehouseFile(
+    string Name,
+    string FileName,
+    string ContentType,
+    long Size,
+    DateTime? LastModified,
+    string Folder)
+{
+    public string Url => Folder == "avatars"
+        ? "/api/user-profiles/avatars/" + Name
+        : "/api/files/" + Name;
+
+    public static WarehouseFile From(StoredFileInfo item, string folder)
+    {
+        return new WarehouseFile(item.Name, item.FileName, item.ContentType, item.Size, item.LastModified, folder);
     }
 }

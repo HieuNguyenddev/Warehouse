@@ -1,3 +1,4 @@
+using RoleManagement.Api.Modules.Files;
 using RoleManagement.Api.Modules.Storage;
 
 namespace RoleManagement.Api.Modules.UserProfiles.Services;
@@ -5,37 +6,22 @@ namespace RoleManagement.Api.Modules.UserProfiles.Services;
 public class AvatarStore
 {
     public const string UrlPrefix = "/api/user-profiles/avatars/";
+    public const string FileUrlPrefix = "/api/files/";
     private const int MaxBytes = 2 * 1024 * 1024;
 
     private readonly GarageStorage _storage;
+    private readonly FileStore _files;
 
-    public AvatarStore(GarageStorage storage)
+    public AvatarStore(GarageStorage storage, FileStore files)
     {
         _storage = storage;
+        _files = files;
     }
 
     public async Task<string> SaveAsync(IFormFile file, CancellationToken cancellationToken = default)
     {
-        if (file.Length <= 0 || file.Length > MaxBytes)
-        {
-            throw new InvalidOperationException("Ảnh đại diện tối đa 2 MB.");
-        }
-
-        var bytes = await ReadAllAsync(file, cancellationToken);
-        var extension = FileSignatures.DetectExtension(bytes, null, imagesOnly: true);
-        if (extension == null)
-        {
-            throw new InvalidOperationException("Chỉ nhận ảnh JPG, PNG, WEBP hoặc GIF.");
-        }
-
-        var name = $"{Guid.NewGuid():N}{extension}";
-        await _storage.PutAsync(
-            "avatars/" + name,
-            bytes,
-            FileSignatures.ContentTypes[extension],
-            name,
-            cancellationToken);
-        return UrlPrefix + name;
+        var saved = await _files.SaveImageAsync(file, MaxBytes, cancellationToken);
+        return saved.Url;
     }
 
     public Task<StoredObject?> OpenAsync(string fileName, CancellationToken cancellationToken = default)
@@ -50,36 +36,40 @@ public class AvatarStore
 
     public Task DeleteStoredAsync(string? url, CancellationToken cancellationToken = default)
     {
-        if (!TryGetFileName(url, out var fileName))
+        if (!TryGetKey(url, out var key))
         {
             return Task.CompletedTask;
         }
 
-        return _storage.DeleteAsync("avatars/" + fileName, cancellationToken);
+        return _storage.DeleteAsync(key, cancellationToken);
     }
 
     public static bool IsStoredPath(string? url)
     {
-        return TryGetFileName(url, out _);
+        return TryGetKey(url, out _);
     }
 
-    private static bool TryGetFileName(string? url, out string fileName)
+    private static bool TryGetKey(string? url, out string key)
     {
-        fileName = string.Empty;
-        if (string.IsNullOrWhiteSpace(url) || !url.StartsWith(UrlPrefix, StringComparison.Ordinal))
+        key = string.Empty;
+        if (string.IsNullOrWhiteSpace(url))
         {
             return false;
         }
 
-        fileName = url[UrlPrefix.Length..];
-        return GarageStorage.IsSafeKey("avatars/" + fileName);
-    }
+        if (url.StartsWith(UrlPrefix, StringComparison.Ordinal))
+        {
+            key = "avatars/" + url[UrlPrefix.Length..];
+            return GarageStorage.IsSafeKey(key);
+        }
 
-    private static async Task<byte[]> ReadAllAsync(IFormFile file, CancellationToken cancellationToken)
-    {
-        await using var input = file.OpenReadStream();
-        using var buffer = new MemoryStream();
-        await input.CopyToAsync(buffer, cancellationToken);
-        return buffer.ToArray();
+        if (url.StartsWith(FileUrlPrefix, StringComparison.Ordinal))
+        {
+            key = "files/" + url[FileUrlPrefix.Length..];
+            var extension = Path.GetExtension(key);
+            return GarageStorage.IsSafeKey(key) && FileSignatures.ImageExtensions.Contains(extension);
+        }
+
+        return false;
     }
 }

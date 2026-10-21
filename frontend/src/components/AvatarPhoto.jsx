@@ -23,13 +23,18 @@ export default function AvatarPhoto({ url, name, className = "avatar-photo" }) {
       return undefined;
     }
 
-    const external = /^https?:\/\//i.test(url) && !url.includes("/api/user-profiles/avatars/");
+    const needsAuth = url.includes("/api/user-profiles/avatars/") || url.includes("/api/files/");
+    const external = /^https?:\/\//i.test(url) && !needsAuth;
     if (external) {
       setSrc(url);
       return undefined;
     }
 
-    const path = url.startsWith("/") ? url : `/${url}`;
+    const path = /^https?:\/\//i.test(url)
+      ? new URL(url).pathname
+      : url.startsWith("/")
+        ? url
+        : `/${url}`;
     const controller = new AbortController();
     let objectUrl = "";
     fetch(`${apiBase()}${path}`, { headers: authHeaders(), signal: controller.signal })

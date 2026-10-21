@@ -36,6 +36,7 @@ export default function UserProfileForm({
   const isEdit = editingId != null;
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [uploadNotice, setUploadNotice] = useState("");
   const set = (patch) => onChange(patch);
 
   async function onPickFile(event) {
@@ -50,9 +51,11 @@ export default function UserProfileForm({
     }
     setUploading(true);
     setUploadError("");
+    setUploadNotice("");
     try {
       const result = await uploadAvatar(file);
       set({ avatarUrl: result?.url || "" });
+      setUploadNotice("Đã lưu ảnh vào kho.");
     } catch (err) {
       setUploadError(err.message || "Không tải được ảnh.");
     } finally {
@@ -98,15 +101,16 @@ export default function UserProfileForm({
           <div className="cv-upload-actions">
             <button type="button" className="ghost" onClick={() => fileRef.current?.click()} disabled={saving || uploading}>
               <Icon name={uploading ? "fa-spinner fa-spin" : "fa-upload"} />
-              {uploading ? "Đang tải…" : "Chọn ảnh"}
+              {uploading ? "Đang lưu vào kho…" : "Chọn ảnh"}
             </button>
             {form.avatarUrl ? (
-              <button type="button" className="text-btn" onClick={() => set({ avatarUrl: "" })} disabled={saving || uploading}>
+              <button type="button" className="text-btn" onClick={() => { set({ avatarUrl: "" }); setUploadNotice(""); }} disabled={saving || uploading}>
                 Gỡ ảnh
               </button>
             ) : null}
           </div>
           {uploadError ? <small className="count is-warn">{uploadError}</small> : null}
+          {uploadNotice ? <small className="count">{uploadNotice}</small> : null}
           <input
             ref={fileRef}
             type="file"

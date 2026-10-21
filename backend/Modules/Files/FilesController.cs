@@ -33,7 +33,7 @@ public class FilesController : ControllerBase
 
     [HttpPost]
     [RequestSizeLimit(8 * 1024 * 1024)]
-    public async Task<ActionResult<StoredFileInfo>> Upload(IFormFile? file, CancellationToken cancellationToken)
+    public async Task<ActionResult<WarehouseFile>> Upload(IFormFile? file, CancellationToken cancellationToken)
     {
         if (file == null || file.Length == 0)
         {
@@ -70,16 +70,17 @@ public class FilesController : ControllerBase
     }
 
     [HttpDelete("{name}")]
-    public async Task<IActionResult> Delete(string name, CancellationToken cancellationToken)
+    public async Task<IActionResult> Delete(string name, [FromQuery] string? folder, CancellationToken cancellationToken)
     {
-        if (!GarageStorage.IsSafeKey("files/" + name))
+        var key = (folder == "avatars" ? "avatars/" : "files/") + name;
+        if (!GarageStorage.IsSafeKey(key))
         {
             return NotFound(new FileMessage("Không tìm thấy tệp."));
         }
 
         try
         {
-            await _files.DeleteAsync(name, cancellationToken);
+            await _files.DeleteAsync(name, folder, cancellationToken);
             return NoContent();
         }
         catch (InvalidOperationException exception)
@@ -100,6 +101,6 @@ public class FilesController : ControllerBase
     }
 }
 
-public record FileListResponse(string Provider, IEnumerable<StoredFileInfo> Files);
+public record FileListResponse(string Provider, IEnumerable<WarehouseFile> Files);
 
 public record FileMessage(string Message);

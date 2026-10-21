@@ -77,7 +77,7 @@ export default function FilesPage({ onCount }) {
     setError("");
     try {
       await uploadFile(file);
-      setNotice(`Đã lưu “${file.name}”.`);
+      setNotice(`Đã lưu “${file.name}” vào kho.`);
       await loadFiles();
     } catch (err) {
       setError(err.message || "Không lưu được tệp.");
@@ -89,7 +89,7 @@ export default function FilesPage({ onCount }) {
   async function onDownload(file) {
     setError("");
     try {
-      await downloadFile(file.name, file.fileName);
+      await downloadFile(file);
     } catch (err) {
       setError(err.message || "Không tải được tệp.");
     }
@@ -101,7 +101,7 @@ export default function FilesPage({ onCount }) {
     }
     setError("");
     try {
-      await deleteStoredFile(file.name);
+      await deleteStoredFile(file);
       setNotice(`Đã xóa “${file.fileName}”.`);
       await loadFiles();
     } catch (err) {
