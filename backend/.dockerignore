@@ -1,6 +1,7 @@
 bin/
 obj/
 .env
+data/
 
 **/*.user
 **/*.md

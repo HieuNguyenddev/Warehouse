@@ -23,3 +23,13 @@ export function deleteUserProfile(id) {
     method: "DELETE",
   });
 }
+
+export function uploadAvatar(file) {
+  const body = new FormData();
+  body.append("file", file);
+  return request("/api/user-profiles/avatar", {
+    method: "POST",
+    body,
+    form: true,
+  });
+}

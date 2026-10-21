@@ -4,8 +4,28 @@ import { createUserProfile, deleteUserProfile, getUserProfiles, updateUserProfil
 import Icon from "./Icon.jsx";
 import Pager, { slicePage } from "./Pager.jsx";
 import { emptyProfileForm, formToPayload, profileToForm } from "./profileLabels.js";
+import ProfileBoard from "./ProfileBoard.jsx";
+import ProfileCv from "./ProfileCv.jsx";
 import UserProfileForm from "./UserProfileForm.jsx";
 import UserProfileTable from "./UserProfileTable.jsx";
+import { usePlaceNames } from "./usePlaceNames.js";
+
+const VIEW_KEY = "warehouse.profileView";
+const ORDER_KEY = "warehouse.profileOrder";
+
+function readView() {
+  const saved = window.localStorage.getItem(VIEW_KEY);
+  return saved === "board" ? saved : "table";
+}
+
+function readOrder() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(ORDER_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed.map(Number).filter(Number.isFinite) : [];
+  } catch {
+    return [];
+  }
+}
 
 export default function UserProfilesPage({ onCount }) {
   const [profiles, setProfiles] = useState([]);
@@ -22,6 +42,11 @@ export default function UserProfilesPage({ onCount }) {
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
   const [notice, setNotice] = useState("");
+  const [view, setView] = useState(readView);
+  const [order, setOrder] = useState(readOrder);
+  const [cvOpen, setCvOpen] = useState(false);
+  const [cvProfileId, setCvProfileId] = useState(null);
+  const [cvProvince, setCvProvince] = useState("");
 
   const loadProfiles = useCallback(async () => {
     setLoading(true);
@@ -52,7 +77,7 @@ export default function UserProfilesPage({ onCount }) {
   }, [notice]);
 
   useEffect(() => {
-    const locked = formOpen || pendingDelete;
+    const locked = formOpen || pendingDelete || cvOpen;
     document.body.classList.toggle("is-locked", locked);
     if (!locked) {
       return undefined;
@@ -60,8 +85,13 @@ export default function UserProfilesPage({ onCount }) {
 
     function onKey(event) {
       if (event.key === "Escape" && !saving && !deleting) {
-        closeForm();
-        setPendingDelete(null);
+        if (pendingDelete) {
+          setPendingDelete(null);
+          return;
+        }
+        if (formOpen) {
+          closeForm();
+        }
       }
     }
 
@@ -70,7 +100,33 @@ export default function UserProfilesPage({ onCount }) {
       window.removeEventListener("keydown", onKey);
       document.body.classList.remove("is-locked");
     };
-  }, [formOpen, pendingDelete, saving, deleting]);
+  }, [formOpen, pendingDelete, cvOpen, saving, deleting]);
+
+  const places = usePlaceNames(profiles, cvProvince || form.provinceCode);
+
+  useEffect(() => {
+    window.localStorage.setItem(VIEW_KEY, view);
+  }, [view]);
+
+  useEffect(() => {
+    if (loading && profiles.length === 0) {
+      return;
+    }
+    const ids = profiles.map((profile) => profile.id);
+    setOrder((current) => {
+      const kept = current.filter((id) => ids.includes(id));
+      const rest = ids.filter((id) => !kept.includes(id));
+      const next = [...kept, ...rest];
+      if (next.length === current.length && next.every((id, index) => id === current[index])) {
+        return current;
+      }
+      return next;
+    });
+  }, [profiles, loading]);
+
+  useEffect(() => {
+    window.localStorage.setItem(ORDER_KEY, JSON.stringify(order));
+  }, [order]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -85,14 +141,18 @@ export default function UserProfilesPage({ onCount }) {
         profile.email,
         profile.identityNumber,
         profile.address,
-        profile.provinceCode,
-        profile.wardCode,
+        places.placeLabel(profile),
       ]
         .join(" ")
         .toLowerCase()
         .includes(needle),
     );
-  }, [profiles, query]);
+  }, [profiles, query, places]);
+
+  const boardProfiles = useMemo(() => {
+    const rank = new Map(order.map((id, index) => [id, index]));
+    return [...filtered].sort((left, right) => (rank.get(left.id) ?? 9999) - (rank.get(right.id) ?? 9999));
+  }, [filtered, order]);
 
   useEffect(() => {
     setPage(1);
@@ -123,6 +183,35 @@ export default function UserProfilesPage({ onCount }) {
     }
     setFormOpen(false);
     resetForm();
+  }
+
+  function moveProfile(fromId, toId) {
+    setOrder((current) => {
+      const next = current.filter((id) => id !== fromId);
+      const index = next.indexOf(toId);
+      if (index < 0) {
+        return current;
+      }
+      next.splice(index, 0, fromId);
+      return next;
+    });
+  }
+
+  function openCv(profile) {
+    const target = profile || boardProfiles.find((item) => item.id === cvProfileId) || boardProfiles[0] || null;
+    setCvProfileId(target?.id ?? null);
+    setCvOpen(true);
+  }
+
+  async function saveCv(id, draft) {
+    setSaving(true);
+    try {
+      await updateUserProfile(id, formToPayload(draft));
+      setNotice("Đã cập nhật hồ sơ.");
+      await loadProfiles();
+    } finally {
+      setSaving(false);
+    }
   }
 
   function openCreate() {
@@ -257,31 +346,69 @@ export default function UserProfilesPage({ onCount }) {
         </div>
       ) : null}
 
-      <section className="panel">
-        <div className="panel-head">
+      <section className={view === "table" ? "panel" : "panel panel-fill"}>
+        <div className="panel-head is-split">
           <div>
-            <h2>Danh sách</h2>
-            <p>Bấm một dòng để xem giấy tờ, liên hệ và địa chỉ. Mỗi tài khoản một hồ sơ.</p>
+            <h2>{view === "board" ? "Kéo thả" : "Danh sách"}</h2>
+            <p>
+              {view === "board"
+                ? "Kéo tay cầm để sắp xếp. Thêm, sửa hoặc xóa ngay trên từng thẻ."
+                : "Bấm một dòng để xem đủ giấy tờ, liên hệ và địa chỉ."}
+            </p>
+          </div>
+          <div className="view-switch" role="tablist" aria-label="Kiểu xem hồ sơ">
+            <button type="button" className={view === "table" ? "is-active" : ""} onClick={() => setView("table")}>
+              <Icon name="fa-table" />
+              Bảng
+            </button>
+            <button type="button" className={cvOpen ? "is-active" : ""} onClick={() => openCv()}>
+              <Icon name="fa-id-card" />
+              CV
+            </button>
+            <button type="button" className={view === "board" ? "is-active" : ""} onClick={() => setView("board")}>
+              <Icon name="fa-grip" />
+              Kéo thả
+            </button>
           </div>
         </div>
-        <UserProfileTable
-          profiles={paged.items}
-          loading={loading}
-          failed={Boolean(error)}
-          editingId={editingId}
-          query={query.trim()}
-          onEdit={startEdit}
-          onDelete={setPendingDelete}
-          onCreate={openCreate}
-          onClearQuery={() => setQuery("")}
-        />
-        <Pager
-          page={paged.current}
-          pageCount={paged.pageCount}
-          total={paged.total}
-          start={paged.start}
-          onPage={setPage}
-        />
+        {view === "table" ? (
+          <UserProfileTable
+            profiles={paged.items}
+            loading={loading}
+            failed={Boolean(error)}
+            editingId={editingId}
+            query={query.trim()}
+            onEdit={startEdit}
+            onDelete={setPendingDelete}
+            onCreate={openCreate}
+            onClearQuery={() => setQuery("")}
+            placeLabel={places.placeLabel}
+            placeOf={places.placeOf}
+          />
+        ) : null}
+        {view === "board" ? (
+          <ProfileBoard
+            profiles={boardProfiles}
+            loading={loading}
+            failed={Boolean(error)}
+            query={query.trim()}
+            placeLabel={places.placeLabel}
+            onEdit={startEdit}
+            onDelete={setPendingDelete}
+            onCreate={openCreate}
+            onClearQuery={() => setQuery("")}
+            onReorder={moveProfile}
+          />
+        ) : null}
+        {view === "board" ? null : (
+          <Pager
+            page={paged.current}
+            pageCount={paged.pageCount}
+            total={paged.total}
+            start={paged.start}
+            onPage={setPage}
+          />
+        )}
       </section>
 
       {notice ? (
@@ -289,6 +416,24 @@ export default function UserProfilesPage({ onCount }) {
           <Icon name="fa-circle-check" />
           <span>{notice}</span>
         </div>
+      ) : null}
+
+      {cvOpen ? (
+        <ProfileCv
+          profiles={boardProfiles}
+          profileId={cvProfileId}
+          provinces={places.provinces}
+          wards={places.wards}
+          placesError={places.error}
+          saving={saving}
+          onSelect={setCvProfileId}
+          onProvince={setCvProvince}
+          onSave={saveCv}
+          onDelete={setPendingDelete}
+          onCreate={openCreate}
+          onClose={() => setCvOpen(false)}
+          blocked={formOpen || Boolean(pendingDelete)}
+        />
       ) : null}
 
       {formOpen ? (
@@ -306,9 +451,13 @@ export default function UserProfilesPage({ onCount }) {
               editingId={editingId}
               saving={saving}
               error={formError}
-              onChange={setForm}
+              onChange={(patch) => setForm((current) => ({ ...current, ...patch }))}
               onSubmit={handleSubmit}
               onCancel={closeForm}
+              provinces={places.provinces}
+              wards={places.wards}
+              placesError={places.error}
+              placesLoading={places.loading}
             />
           </div>
         </div>

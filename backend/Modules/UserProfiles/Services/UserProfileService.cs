@@ -13,11 +13,13 @@ public class UserProfileService : IUserProfileService
 
     private readonly IUserProfileRepository _profiles;
     private readonly IUserRepository _users;
+    private readonly AvatarStore _avatars;
 
-    public UserProfileService(IUserProfileRepository profiles, IUserRepository users)
+    public UserProfileService(IUserProfileRepository profiles, IUserRepository users, AvatarStore avatars)
     {
         _profiles = profiles;
         _users = users;
+        _avatars = avatars;
     }
 
     public async Task<IReadOnlyList<UserProfileResponse>> ListAsync(CancellationToken cancellationToken = default)
@@ -114,6 +116,7 @@ public class UserProfileService : IUserProfileService
             return UserProfileResult.DuplicateEmail("Email đã được dùng ở hồ sơ khác.");
         }
 
+        var previousAvatar = profile.AvatarUrl;
         Apply(profile, normalized);
         profile.UpdatedAt = DateTime.UtcNow;
         try
@@ -123,6 +126,11 @@ public class UserProfileService : IUserProfileService
         catch (DbUpdateException)
         {
             return UserProfileResult.DuplicateIdentity("Số CCCD hoặc email đã được dùng ở hồ sơ khác.");
+        }
+
+        if (!string.Equals(previousAvatar, profile.AvatarUrl, StringComparison.Ordinal))
+        {
+            _avatars.DeleteStored(previousAvatar);
         }
 
         return UserProfileResult.Ok(UserProfileResponse.From(profile));
@@ -136,7 +144,9 @@ public class UserProfileService : IUserProfileService
             return UserProfileResult.NotFound($"Không tìm thấy hồ sơ có ID = {id}.");
         }
 
+        var avatar = profile.AvatarUrl;
         await _profiles.DeleteAsync(profile, cancellationToken);
+        _avatars.DeleteStored(avatar);
         return UserProfileResult.Ok();
     }
 
@@ -153,7 +163,7 @@ public class UserProfileService : IUserProfileService
         profile.Address = normalized.Address;
         profile.PermanentAddress = normalized.PermanentAddress;
         profile.ProvinceCode = normalized.ProvinceCode;
-        profile.DistrictCode = normalized.DistrictCode;
+        profile.DistrictCode = null;
         profile.WardCode = normalized.WardCode;
         profile.PlaceOfBirth = normalized.PlaceOfBirth;
         profile.Nationality = normalized.Nationality;
@@ -301,10 +311,15 @@ public class UserProfileService : IUserProfileService
             return (null, null);
         }
 
+        if (AvatarStore.IsStoredPath(trimmed))
+        {
+            return (trimmed, null);
+        }
+
         if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
             || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
         {
-            return (null, UserProfileResult.Invalid("Ảnh đại diện phải là đường dẫn http hoặc https."));
+            return (null, UserProfileResult.Invalid("Ảnh đại diện phải là file đã tải lên hoặc đường dẫn http, https."));
         }
 
         return (trimmed, null);

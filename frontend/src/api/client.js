@@ -30,15 +30,15 @@ function errorMessage(body, status) {
 
 export async function request(path, options = {}) {
   const session = readSession();
-  const headers = {
-    "Content-Type": "application/json",
-    ...(options.headers || {}),
-  };
+  const headers = { ...(options.headers || {}) };
+  if (!options.form && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
   if (session?.token && !options.skipAuth) {
     headers.Authorization = `Bearer ${session.token}`;
   }
 
-  const { skipAuth, headers: _ignored, ...rest } = options;
+  const { skipAuth, form: _form, headers: _ignored, ...rest } = options;
   const response = await fetch(`${API_BASE}${path}`, {
     ...rest,
     headers,
@@ -72,4 +72,13 @@ export async function request(path, options = {}) {
   }
 
   return body;
+}
+
+export function apiBase() {
+  return API_BASE;
+}
+
+export function authHeaders() {
+  const session = readSession();
+  return session?.token ? { Authorization: `Bearer ${session.token}` } : {};
 }

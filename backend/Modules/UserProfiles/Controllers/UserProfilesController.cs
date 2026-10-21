@@ -12,10 +12,44 @@ namespace RoleManagement.Api.Modules.UserProfiles.Controllers;
 public class UserProfilesController : ControllerBase
 {
     private readonly IUserProfileService _profiles;
+    private readonly AvatarStore _avatars;
 
-    public UserProfilesController(IUserProfileService profiles)
+    public UserProfilesController(IUserProfileService profiles, AvatarStore avatars)
     {
         _profiles = profiles;
+        _avatars = avatars;
+    }
+
+    [HttpPost("avatar")]
+    [RequestSizeLimit(2 * 1024 * 1024)]
+    public async Task<ActionResult<AvatarUploadResponse>> UploadAvatar(IFormFile? file, CancellationToken cancellationToken)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(new ApiMessage("Chọn một ảnh từ máy tính."));
+        }
+
+        try
+        {
+            var url = await _avatars.SaveAsync(file, cancellationToken);
+            return Ok(new AvatarUploadResponse(url));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return BadRequest(new ApiMessage(exception.Message));
+        }
+    }
+
+    [HttpGet("avatars/{fileName}")]
+    public IActionResult DownloadAvatar(string fileName)
+    {
+        var opened = _avatars.Open(fileName);
+        if (opened == null)
+        {
+            return NotFound(new ApiMessage("Không tìm thấy ảnh đại diện."));
+        }
+
+        return PhysicalFile(opened.Value.Path, opened.Value.ContentType);
     }
 
     [HttpGet]

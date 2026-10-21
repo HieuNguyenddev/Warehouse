@@ -9,6 +9,7 @@ using Npgsql;
 using RoleManagement.Api.Data;
 using RoleManagement.Api.Modules.Auth;
 using RoleManagement.Api.Modules.Auth.Services;
+using RoleManagement.Api.Modules.Locations.Services;
 using RoleManagement.Api.Modules.Positions.Repositories;
 using RoleManagement.Api.Modules.Positions.Services;
 using RoleManagement.Api.Modules.Roles.Repositories;
@@ -80,6 +81,13 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient("provinces", client =>
+{
+    client.BaseAddress = new Uri("https://provinces.open-api.vn/");
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
+builder.Services.AddSingleton<LocationCatalog>();
 builder.Services.AddAuthorization();
 
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
@@ -87,6 +95,7 @@ builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<IPositionRepository, PositionRepository>();
 builder.Services.AddScoped<IPositionService, PositionService>();
+builder.Services.AddSingleton<AvatarStore>();
 builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();

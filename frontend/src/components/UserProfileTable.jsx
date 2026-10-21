@@ -35,6 +35,8 @@ export default function UserProfileTable({
   onDelete,
   onCreate,
   onClearQuery,
+  placeLabel = () => "",
+  placeOf = () => ({ province: "", ward: "" }),
 }) {
   const [selected, setSelected] = useState(null);
   const closeDetail = useCallback(() => setSelected(null), []);
@@ -92,7 +94,7 @@ export default function UserProfileTable({
               <span className="avatar">{initials(profile.fullName)}</span>
               <div>
                 <strong>{profile.fullName}</strong>
-                <span className="meta">@{profile.username} · {optionLabel(genderOptions, profile.gender)}</span>
+                <span className="meta">@{profile.username} · {optionLabel(genderOptions, profile.gender)}{placeLabel(profile) ? ` · ${placeLabel(profile)}` : ""}</span>
               </div>
             </div>
             <p className="clamp">{profile.phoneNumber || profile.email || "Chưa có liên hệ"}</p>
@@ -122,7 +124,7 @@ export default function UserProfileTable({
                     <span className="avatar">{initials(profile.fullName)}</span>
                     <div>
                       <strong>{profile.fullName}</strong>
-                      <span className="meta">@{profile.username}{profile.userDeletedAt ? " · tài khoản đã xóa" : ""}</span>
+                      <span className="meta">@{profile.username}{placeLabel(profile) ? ` · ${placeLabel(profile)}` : ""}{profile.userDeletedAt ? " · tài khoản đã xóa" : ""}</span>
                     </div>
                   </div>
                 </td>
@@ -175,9 +177,8 @@ export default function UserProfileTable({
             { label: "Email", value: show(selected.email) },
             { label: "Nơi ở hiện tại", value: show(selected.address), wide: true },
             { label: "Thường trú", value: show(selected.permanentAddress), wide: true },
-            { label: "Mã tỉnh", value: show(selected.provinceCode) },
-            { label: "Mã huyện", value: show(selected.districtCode) },
-            { label: "Mã xã", value: show(selected.wardCode) },
+            { label: "Tỉnh / thành phố", value: show(placeOf(selected).province || selected.provinceCode) },
+            { label: "Xã / phường", value: show(placeOf(selected).ward || selected.wardCode) },
             { label: "Trình độ", value: show(selected.educationLevel) },
             { label: "Người liên hệ", value: show(selected.emergencyContactName) },
             { label: "SĐT khẩn cấp", value: show(selected.emergencyContactPhone) },

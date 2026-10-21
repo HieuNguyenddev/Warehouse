@@ -1,4 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { uploadAvatar } from "../api/userProfiles";
+import AvatarPhoto from "./AvatarPhoto.jsx";
 import Icon from "./Icon.jsx";
 import { genderOptions, maritalOptions } from "./profileLabels.js";
 
@@ -24,10 +26,39 @@ export default function UserProfileForm({
   onChange,
   onSubmit,
   onCancel,
+  provinces = [],
+  wards = [],
+  placesError = "",
+  placesLoading = false,
 }) {
   const nameRef = useRef(null);
+  const fileRef = useRef(null);
   const isEdit = editingId != null;
-  const set = (patch) => onChange({ ...form, ...patch });
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const set = (patch) => onChange(patch);
+
+  async function onPickFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) {
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setUploadError("Ảnh tối đa 2 MB.");
+      return;
+    }
+    setUploading(true);
+    setUploadError("");
+    try {
+      const result = await uploadAvatar(file);
+      set({ avatarUrl: result?.url || "" });
+    } catch (err) {
+      setUploadError(err.message || "Không tải được ảnh.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   useEffect(() => {
     nameRef.current?.focus();
@@ -58,6 +89,33 @@ export default function UserProfileForm({
           <span>{error}</span>
         </div>
       ) : null}
+
+      <div className="cv-upload">
+        <AvatarPhoto url={form.avatarUrl} name={form.fullName} className="avatar-photo is-large" />
+        <div>
+          <strong>Ảnh đại diện</strong>
+          <p>JPG, PNG, WEBP hoặc GIF, tối đa 2 MB.</p>
+          <div className="cv-upload-actions">
+            <button type="button" className="ghost" onClick={() => fileRef.current?.click()} disabled={saving || uploading}>
+              <Icon name={uploading ? "fa-spinner fa-spin" : "fa-upload"} />
+              {uploading ? "Đang tải…" : "Chọn ảnh"}
+            </button>
+            {form.avatarUrl ? (
+              <button type="button" className="text-btn" onClick={() => set({ avatarUrl: "" })} disabled={saving || uploading}>
+                Gỡ ảnh
+              </button>
+            ) : null}
+          </div>
+          {uploadError ? <small className="count is-warn">{uploadError}</small> : null}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            hidden
+            onChange={onPickFile}
+          />
+        </div>
+      </div>
 
       <section className="form-section">
         <h4>Tài khoản</h4>
@@ -158,17 +216,43 @@ export default function UserProfileForm({
         <Field icon="fa-house-chimney" label="Thường trú" hint={`${form.permanentAddress.length}/255`}>
           <input maxLength={255} value={form.permanentAddress} onChange={(event) => set({ permanentAddress: event.target.value })} />
         </Field>
-        <div className="field-row field-row-3">
-          <Field icon="fa-map" label="Mã tỉnh">
-            <input maxLength={20} value={form.provinceCode} onChange={(event) => set({ provinceCode: event.target.value })} placeholder="01" />
+        <div className="field-row">
+          <Field icon="fa-map" label="Tỉnh / thành phố">
+            <select
+              value={form.provinceCode}
+              onChange={(event) => set({ provinceCode: event.target.value, wardCode: "" })}
+              disabled={placesLoading && provinces.length === 0}
+            >
+              <option value="">{placesLoading ? "Đang tải danh mục…" : "Chọn tỉnh, thành phố"}</option>
+              {form.provinceCode && !provinces.some((item) => item.code === form.provinceCode) ? (
+                <option value={form.provinceCode}>{form.provinceCode}</option>
+              ) : null}
+              {provinces.map((item) => (
+                <option key={item.code} value={item.code}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
           </Field>
-          <Field icon="fa-map" label="Mã huyện">
-            <input maxLength={20} value={form.districtCode} onChange={(event) => set({ districtCode: event.target.value })} />
-          </Field>
-          <Field icon="fa-map" label="Mã xã">
-            <input maxLength={20} value={form.wardCode} onChange={(event) => set({ wardCode: event.target.value })} />
+          <Field icon="fa-map" label="Xã / phường">
+            <select
+              value={form.wardCode}
+              onChange={(event) => set({ wardCode: event.target.value })}
+              disabled={!form.provinceCode}
+            >
+              <option value="">{form.provinceCode ? "Chọn xã, phường" : "Chọn tỉnh trước"}</option>
+              {form.wardCode && !wards.some((item) => item.code === form.wardCode) ? (
+                <option value={form.wardCode}>{form.wardCode}</option>
+              ) : null}
+              {wards.map((item) => (
+                <option key={item.code} value={item.code}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
           </Field>
         </div>
+        {placesError ? <small className="count is-warn">{placesError}</small> : null}
       </section>
 
       <section className="form-section">
@@ -181,14 +265,9 @@ export default function UserProfileForm({
             <input maxLength={20} inputMode="tel" value={form.emergencyContactPhone} onChange={(event) => set({ emergencyContactPhone: event.target.value })} />
           </Field>
         </div>
-        <div className="field-row">
-          <Field icon="fa-graduation-cap" label="Trình độ">
-            <input maxLength={50} value={form.educationLevel} onChange={(event) => set({ educationLevel: event.target.value })} placeholder="Đại học" />
-          </Field>
-          <Field icon="fa-image" label="Ảnh đại diện">
-            <input maxLength={255} value={form.avatarUrl} onChange={(event) => set({ avatarUrl: event.target.value })} placeholder="https://" />
-          </Field>
-        </div>
+        <Field icon="fa-graduation-cap" label="Trình độ">
+          <input maxLength={50} value={form.educationLevel} onChange={(event) => set({ educationLevel: event.target.value })} placeholder="Đại học" />
+        </Field>
         <Field icon="fa-align-left" label="Ghi chú" hint={`${form.note.length}/500`} warn={form.note.length > 480}>
           <textarea maxLength={500} rows={3} value={form.note} onChange={(event) => set({ note: event.target.value })} />
         </Field>
@@ -199,7 +278,7 @@ export default function UserProfileForm({
           <Icon name="fa-xmark" />
           Hủy
         </button>
-        <button type="submit" className="primary" disabled={saving || form.fullName.trim() === "" || form.userId === ""}>
+        <button type="submit" className="primary" disabled={saving || uploading || form.fullName.trim() === "" || form.userId === ""}>
           <Icon name={saving ? "fa-spinner fa-spin" : isEdit ? "fa-check" : "fa-plus"} />
           {saving ? "Đang lưu…" : isEdit ? "Lưu hồ sơ" : "Tạo hồ sơ"}
         </button>

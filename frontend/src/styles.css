@@ -1073,7 +1073,7 @@ tr.is-clickable,
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 30;
+  z-index: 50;
   display: grid;
   place-items: center;
   padding: 1.25rem;
@@ -1554,6 +1554,492 @@ td.ip {
   .sidebar {
     animation: none;
     transition: none;
+  }
+}
+
+.panel.panel-fill {
+  flex: 1 1 auto;
+}
+
+.panel-head.is-split {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.view-switch {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 0.15rem;
+  padding: 0.2rem;
+  border-radius: 0.7rem;
+  background: var(--chip);
+}
+
+.view-switch button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 0.55rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.view-switch button.is-active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+  gap: 0.7rem;
+  align-content: start;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 0.75rem 0.95rem 0.95rem;
+}
+
+.board-card,
+.board-add {
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: var(--surface);
+}
+
+.board-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.7rem;
+}
+
+.board-card.is-over {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.board-card-top {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.board-card-top strong,
+.board-card-top small,
+.board-card p {
+  display: block;
+}
+
+.board-card-top strong {
+  font-size: 0.86rem;
+}
+
+.board-card-top small,
+.board-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.drag-handle {
+  display: grid;
+  place-items: center;
+  width: 1.4rem;
+  color: var(--muted);
+  cursor: grab;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.board-card-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+}
+
+.board-card-actions .ghost,
+.board-card-actions .danger {
+  padding: 0.32rem 0.55rem;
+  font-size: 0.74rem;
+}
+
+.board-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 9rem;
+  border-style: dashed;
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.82rem;
+}
+
+.cv-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.cv-screen-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex-shrink: 0;
+  padding: 0.7rem 1rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.cv-screen-bar p {
+  margin: 0.1rem 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.cv-screen-bar strong {
+  font-size: 0.95rem;
+}
+
+.cv-screen-actions {
+  display: flex;
+  gap: 0.45rem;
+  margin-left: auto;
+}
+
+.cv-screen-body {
+  display: grid;
+  grid-template-columns: 16rem minmax(0, 1fr);
+  min-height: 0;
+  flex: 1;
+}
+
+.cv-screen-sheet {
+  overflow: auto;
+  padding: 1rem 1.25rem 1.5rem;
+}
+
+.cv-screen .cv-paper {
+  max-width: 68rem;
+}
+
+.cv-screen .cv-grid {
+  grid-template-columns: 1fr 1fr;
+}
+
+.cv-photo-edit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.cv-photo-edit .ghost {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.74rem;
+}
+
+.cv-name {
+  width: 100%;
+  margin-top: 0.15rem;
+  padding: 0.15rem 0.2rem;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: var(--ink);
+  font-size: 1.45rem;
+  font-weight: 700;
+}
+
+.cv-name:focus {
+  border-bottom-color: var(--accent);
+  outline: none;
+}
+
+.cv-block h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.cv-block.is-over,
+.cv-edit-row.is-over {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 0.45rem;
+}
+
+.cv-edit-row {
+  display: grid;
+  grid-template-columns: 1.1rem 7.2rem minmax(0, 1fr);
+  gap: 0.45rem;
+  align-items: center;
+  margin: 0.2rem 0;
+}
+
+.cv-edit-row > span:nth-child(2) {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.cv-edit-row input,
+.cv-edit-row select,
+.cv-edit-row textarea {
+  width: 100%;
+  padding: 0.42rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.cv-edit-row textarea {
+  resize: vertical;
+}
+
+@media (max-width: 980px) {
+  .cv-screen-body,
+  .cv-screen .cv-grid,
+  .cv-edit-row {
+    grid-template-columns: 1fr;
+  }
+
+  .cv-screen-body .cv-list {
+    max-height: 11rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .cv-screen-bar {
+    flex-wrap: wrap;
+  }
+}
+
+.cv-desk {
+  display: grid;
+  grid-template-columns: 15.5rem minmax(0, 1fr);
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.cv-list {
+  overflow: auto;
+  border-right: 1px solid var(--line);
+  padding: 0.4rem;
+}
+
+.cv-person {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  margin-bottom: 0.25rem;
+  padding: 0.45rem;
+  border: 0;
+  border-radius: 0.7rem;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.cv-person strong,
+.cv-person small {
+  display: block;
+}
+
+.cv-person strong {
+  font-size: 0.82rem;
+}
+
+.cv-person small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.cv-person.is-active {
+  background: var(--accent-soft);
+}
+
+.cv-sheet {
+  overflow: auto;
+  padding: 0.85rem;
+  background:
+    linear-gradient(180deg, var(--chip), transparent 7rem);
+}
+
+.cv-paper {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 1.1rem 1.15rem 1.2rem;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.cv-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.9rem;
+  align-items: center;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.cv-kicker {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cv-head h2 {
+  margin: 0.1rem 0 0;
+  font-size: 1.35rem;
+}
+
+.cv-account {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.cv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+
+.cv-chips span {
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.cv-chips .is-muted {
+  color: var(--danger);
+}
+
+.cv-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.cv-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem 1.2rem;
+  margin-top: 0.9rem;
+}
+
+.cv-block h3 {
+  margin: 0 0 0.35rem;
+  color: var(--accent-deep);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cv-row {
+  display: grid;
+  grid-template-columns: 6.2rem minmax(0, 1fr);
+  gap: 0.4rem;
+  padding: 0.28rem 0;
+  border-bottom: 1px dashed var(--line);
+  font-size: 0.78rem;
+}
+
+.cv-row span {
+  color: var(--muted);
+}
+
+.cv-row strong {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.cv-empty {
+  display: grid;
+  place-items: center;
+  gap: 0.7rem;
+  min-height: 12rem;
+  padding: 1.5rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.avatar-photo {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.avatar-photo.is-large {
+  width: 5.4rem;
+  height: 5.4rem;
+  font-size: 1.1rem;
+}
+
+.cv-upload {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-bottom: 0.8rem;
+  padding: 0.75rem;
+  border: 1px dashed var(--line);
+  border-radius: 0.9rem;
+}
+
+.cv-upload p {
+  margin: 0.15rem 0 0.45rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.cv-upload-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+@media (max-width: 980px) {
+  .cv-desk {
+    grid-template-columns: 1fr;
+  }
+
+  .cv-list {
+    max-height: 11rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .cv-head,
+  .cv-grid {
+    grid-template-columns: 1fr;
   }
 }
 

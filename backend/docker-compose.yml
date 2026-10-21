@@ -12,6 +12,8 @@ services:
       Jwt__Key: ${JWT_KEY:?Đặt JWT_KEY trong backend/.env, ít nhất 32 ký tự}
       Seed__Username: ${SEED_USERNAME:-admin}
       Seed__Password: ${SEED_PASSWORD:?Đặt SEED_PASSWORD trong backend/.env}
+    volumes:
+      - avatar-data:/app/data/avatars
     depends_on:
       postgres:
         condition: service_healthy
@@ -61,3 +63,4 @@ services:
 
 volumes:
   postgres-data:
+  avatar-data:
