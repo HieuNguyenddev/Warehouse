@@ -45,6 +45,16 @@ jobs:
             grep -q '^POSTGRES_PASSWORD=.' .env || { echo "Thiếu POSTGRES_PASSWORD trong $ROOT/backend/.env"; exit 1; }
             grep -q '^JWT_KEY=.' .env || { echo "Thiếu JWT_KEY trong $ROOT/backend/.env"; exit 1; }
             grep -q '^SEED_PASSWORD=.' .env || { echo "Thiếu SEED_PASSWORD trong $ROOT/backend/.env"; exit 1; }
+            password="$(grep -E '^POSTGRES_PASSWORD=' .env | tail -n 1 | cut -d= -f2-)"
+            connection="Host=postgres;Port=5432;Database=RoleManagementDb;Username=postgres;Password=${password}"
+            current="$(grep -E '^CONNECTION_STRING=' .env | tail -n 1 | cut -d= -f2- || true)"
+            if [ "$current" != "$connection" ]; then
+              grep -v '^CONNECTION_STRING=' .env > .env.tmp
+              printf '%s\n' "CONNECTION_STRING=${connection}" >> .env.tmp
+              mv .env.tmp .env
+              chmod 600 .env
+              echo "Đã ghi CONNECTION_STRING với Host=postgres cho container API."
+            fi
             mkdir -p certbot/www
             docker compose up -d --build
             docker compose up -d --force-recreate --no-deps nginx

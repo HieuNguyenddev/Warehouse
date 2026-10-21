@@ -13,6 +13,8 @@ using RoleManagement.Api.Modules.Positions.Repositories;
 using RoleManagement.Api.Modules.Positions.Services;
 using RoleManagement.Api.Modules.Roles.Repositories;
 using RoleManagement.Api.Modules.Roles.Services;
+using RoleManagement.Api.Modules.UserProfiles.Repositories;
+using RoleManagement.Api.Modules.UserProfiles.Services;
 using RoleManagement.Api.Modules.Users.Entities;
 using RoleManagement.Api.Modules.Users.Repositories;
 using RoleManagement.Api.Modules.Users.Services;
@@ -85,6 +87,8 @@ builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<IPositionRepository, PositionRepository>();
 builder.Services.AddScoped<IPositionService, PositionService>();
+builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
+builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
@@ -169,6 +173,8 @@ static void LoadDotEnv(string path)
         return;
     }
 
+    var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
     foreach (var rawLine in File.ReadLines(path))
     {
         var line = rawLine.Trim();
@@ -185,19 +191,47 @@ static void LoadDotEnv(string path)
 
         var name = line[..separator].Trim();
         var value = line[(separator + 1)..].Trim().Trim('"');
-        var variable = name switch
-        {
-            "JWT_KEY" => "Jwt__Key",
-            "SEED_PASSWORD" => "Seed__Password",
-            "SEED_USERNAME" => "Seed__Username",
-            _ => null,
-        };
-
-        if (variable == null || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(variable)))
+        if (string.IsNullOrEmpty(name))
         {
             continue;
         }
 
+        values[name] = value;
+    }
+
+    SetFromEnvFile(values, "JWT_KEY", "Jwt__Key");
+    SetFromEnvFile(values, "SEED_PASSWORD", "Seed__Password");
+    SetFromEnvFile(values, "SEED_USERNAME", "Seed__Username");
+
+    if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")))
+    {
+        return;
+    }
+
+    var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+    var connectionKey = string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase)
+        ? "CONNECTION_STRING_DEVELOPMENT"
+        : "CONNECTION_STRING";
+    if (!values.TryGetValue(connectionKey, out var connection) || string.IsNullOrWhiteSpace(connection))
+    {
+        values.TryGetValue("CONNECTION_STRING", out connection);
+    }
+
+    if (!string.IsNullOrWhiteSpace(connection))
+    {
+        Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", connection);
+    }
+}
+
+static void SetFromEnvFile(Dictionary<string, string> values, string name, string variable)
+{
+    if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable(variable)))
+    {
+        return;
+    }
+
+    if (values.TryGetValue(name, out var value) && !string.IsNullOrWhiteSpace(value))
+    {
         Environment.SetEnvironmentVariable(variable, value);
     }
 }

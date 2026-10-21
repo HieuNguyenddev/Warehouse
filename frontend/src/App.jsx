@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getPositions } from "./api/positions";
 import { getRoles } from "./api/roles";
 import { clearSession, readSession } from "./api/session";
+import { getUserProfiles } from "./api/userProfiles";
 import { getUsers } from "./api/users";
 import Icon from "./components/Icon.jsx";
 import LoginPage from "./components/LoginPage.jsx";
 import PositionsPage from "./components/PositionsPage.jsx";
 import RolesPage from "./components/RolesPage.jsx";
+import UserProfilesPage from "./components/UserProfilesPage.jsx";
 import UsersPage from "./components/UsersPage.jsx";
 
 function SidebarToggleIcon({ collapsed }) {
@@ -44,6 +46,7 @@ export default function App() {
   const [roleCount, setRoleCount] = useState(0);
   const [positionCount, setPositionCount] = useState(0);
   const [userCount, setUserCount] = useState(0);
+  const [profileCount, setProfileCount] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
   const accountRef = useRef(null);
@@ -51,6 +54,7 @@ export default function App() {
   const setRoleTotal = useCallback((count) => setRoleCount(count), []);
   const setPositionTotal = useCallback((count) => setPositionCount(count), []);
   const setUserTotal = useCallback((count) => setUserCount(count), []);
+  const setProfileTotal = useCallback((count) => setProfileCount(count), []);
   const openRoles = useCallback(() => {
     setPage("roles");
     setNavOpen(false);
@@ -142,6 +146,14 @@ export default function App() {
       .then((data) => {
         if (!cancelled && Array.isArray(data)) {
           setUserCount(data.length);
+        }
+      })
+      .catch(() => {});
+
+    getUserProfiles()
+      .then((data) => {
+        if (!cancelled && Array.isArray(data)) {
+          setProfileCount(data.length);
         }
       })
       .catch(() => {});
@@ -313,6 +325,17 @@ export default function App() {
               <span>Người dùng</span>
               <em>{userCount}</em>
             </button>
+            <button
+              type="button"
+              className={page === "profiles" ? "nav-item is-active" : "nav-item"}
+              aria-current={page === "profiles" ? "page" : undefined}
+              title={collapsed ? "Hồ sơ" : undefined}
+              onClick={() => openPage("profiles")}
+            >
+              <Icon name="fa-id-card" />
+              <span>Hồ sơ</span>
+              <em>{profileCount}</em>
+            </button>
           </nav>
 
           <div className="sidebar-user">
@@ -323,6 +346,8 @@ export default function App() {
 
         {page === "users" ? (
           <UsersPage onCount={setUserTotal} onOpenRoles={openRoles} />
+        ) : page === "profiles" ? (
+          <UserProfilesPage onCount={setProfileTotal} />
         ) : page === "positions" ? (
           <PositionsPage onCount={setPositionTotal} />
         ) : (

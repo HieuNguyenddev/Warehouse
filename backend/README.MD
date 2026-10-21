@@ -181,6 +181,8 @@ cd /root/Documents/Warehouse/backend
 | `JWT_KEY` | Khóa ký JWT do mình tự gõ, ít nhất 32 ký tự. Không dùng khóa đã từng commit trong `appsettings.json` |
 | `SEED_USERNAME` | Tên đăng nhập tài khoản tạo lúc khởi động. Bỏ dòng này thì Compose dùng `admin` |
 | `SEED_PASSWORD` | Mật khẩu dùng khi tạo tài khoản đó lần đầu. Không ghi đè mật khẩu đã lưu trong database |
+| `CONNECTION_STRING` | Chuỗi API dùng trong Docker. Host là `postgres`, mật khẩu trùng `POSTGRES_PASSWORD`. GitHub Actions ghi dòng này nếu thiếu |
+| `CONNECTION_STRING_DEVELOPMENT` | Chuỗi khi `dotnet run` trên máy development. Host là IP VPS, ví dụ `103.183.120.48`. Container trên VPS không đọc dòng này |
 
 Từ máy đang dùng, SSH vào VPS rồi đứng đúng thư mục Compose:
 
@@ -212,13 +214,14 @@ umask 077
 grep -q '^JWT_KEY=.' .env || printf '%s\n' 'JWT_KEY=KHOA_TU_DAT_IT_NHAT_32_KY_TU' >> .env
 grep -q '^SEED_USERNAME=.' .env || printf '%s\n' 'SEED_USERNAME=Admin' >> .env
 grep -q '^SEED_PASSWORD=.' .env || printf '%s\n' 'SEED_PASSWORD=Admin@123' >> .env
+grep -q '^CONNECTION_STRING=Host=postgres;' .env || printf '%s\n' "CONNECTION_STRING=Host=postgres;Port=5432;Database=RoleManagementDb;Username=postgres;Password=$(grep -E '^POSTGRES_PASSWORD=' .env | tail -n 1 | cut -d= -f2-)" >> .env
 chmod 600 .env
 ```
 
 - `JWT_KEY` tự gõ một chuỗi bất kỳ dài ít nhất 32 ký tự, thay cho `KHOA_TU_DAT_IT_NHAT_32_KY_TU`. Không dùng khoảng trắng. Khóa chỉ nằm trong `.env`, không dán vào git.
 - `grep -q` kiểm tra dòng đã có chưa. `>>` thêm vào cuối file. Dòng `POSTGRES_PASSWORD` cũ được giữ.
 - `SEED_PASSWORD` là mật khẩu admin tự đặt. Không thêm khoảng trắng hai bên dấu `=`. Không bọc dấu nháy. Ký tự `@` giữ nguyên.
-- Máy chưa có file thì tạo đủ bốn dòng. `>` chỉ dùng khi file chưa tồn tại, vì lệnh này xóa nội dung cũ:
+- Máy chưa có file thì tạo đủ năm dòng. `CONNECTION_STRING` dùng cùng mật khẩu với `POSTGRES_PASSWORD`, host là `postgres`. `>` chỉ dùng khi file chưa tồn tại, vì lệnh này xóa nội dung cũ:
 
 ```bash
 umask 077
@@ -226,7 +229,8 @@ printf '%s\n' \
   'POSTGRES_PASSWORD=MAT_KHAU_DANG_DUNG' \
   'JWT_KEY=KHOA_TU_DAT_IT_NHAT_32_KY_TU' \
   'SEED_USERNAME=Admin' \
-  'SEED_PASSWORD=Admin@123' > .env
+  'SEED_PASSWORD=Admin@123' \
+  'CONNECTION_STRING=Host=postgres;Port=5432;Database=RoleManagementDb;Username=postgres;Password=MAT_KHAU_DANG_DUNG' > .env
 chmod 600 .env
 ```
 
@@ -237,12 +241,13 @@ ls -l .env
 grep -c '^POSTGRES_PASSWORD=.' .env
 grep -c '^JWT_KEY=.' .env
 grep -c '^SEED_PASSWORD=.' .env
+grep -c '^CONNECTION_STRING=Host=postgres;' .env
 ```
 
 - `ls -l .env` phải thấy quyền `-rw-------`.
 - Mỗi lệnh `grep -c` phải in `1`.
 - Không `git add .env`. File này nằm trong `.gitignore`. `backend/.dockerignore` cũng bỏ file này khi build image.
-- GitHub Actions dừng trước `docker compose up` nếu thiếu một trong ba dòng `POSTGRES_PASSWORD`, `JWT_KEY`, `SEED_PASSWORD`.
+- GitHub Actions dừng trước `docker compose up` nếu thiếu `POSTGRES_PASSWORD`, `JWT_KEY` hoặc `SEED_PASSWORD`. Thiếu `CONNECTION_STRING`, hoặc host của dòng đó không phải `postgres`, thì workflow ghi `Host=postgres;Port=5432;Database=RoleManagementDb;Username=postgres;Password=` cộng đúng `POSTGRES_PASSWORD`. Container trên VPS không dùng `CONNECTION_STRING_DEVELOPMENT`.
 
 Tài khoản admin đã được tạo bằng mật khẩu cũ thì `SEED_PASSWORD` mới không đổi mật khẩu trong database. Đăng nhập bằng mật khẩu đang dùng, rồi đổi mật khẩu trong giao diện. Lần cài mới, API tạo user bằng đúng `SEED_PASSWORD`.
 
@@ -270,15 +275,17 @@ sudo docker compose ps
 cd /root/Documents/Warehouse/backend
 docker compose exec postgres psql -U postgres -d RoleManagementDb -c "ALTER USER postgres PASSWORD 'MAT_KHAU_MOI';"
 umask 077
-grep -v '^POSTGRES_PASSWORD=' .env > .env.tmp
-printf '%s\n' 'POSTGRES_PASSWORD=MAT_KHAU_MOI' >> .env.tmp
+grep -v -E '^(POSTGRES_PASSWORD|CONNECTION_STRING)=' .env > .env.tmp
+printf '%s\n' \
+  'POSTGRES_PASSWORD=MAT_KHAU_MOI' \
+  'CONNECTION_STRING=Host=postgres;Port=5432;Database=RoleManagementDb;Username=postgres;Password=MAT_KHAU_MOI' >> .env.tmp
 mv .env.tmp .env
 chmod 600 .env
 docker compose up -d --force-recreate --no-deps api
 ```
 
 - `ALTER USER` đổi mật khẩu user `postgres` trong volume đang có.
-- `grep -v` bỏ dòng mật khẩu database cũ, rồi ghi dòng mới. `JWT_KEY` và `SEED_PASSWORD` trong cùng file được giữ. Không dùng `>` để ghi đè cả file.
+- `grep -v` bỏ `POSTGRES_PASSWORD` và `CONNECTION_STRING` cũ, rồi ghi cả hai dòng với mật khẩu mới. Host của chuỗi kết nối vẫn là `postgres`. `JWT_KEY` và `SEED_PASSWORD` được giữ. Không dùng `>` để ghi đè cả file.
 - `--force-recreate --no-deps api` tạo lại API để nhận chuỗi kết nối mới. PostgreSQL không cần tạo lại.
 
 Gọi API qua Nginx. Trên VPS đã có chứng chỉ và DNS `api` trỏ về IP máy:

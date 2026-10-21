@@ -34,6 +34,7 @@ fi
 password="$(read_env POSTGRES_PASSWORD)"
 jwt="$(read_env JWT_KEY)"
 seed_password="$(read_env SEED_PASSWORD)"
+development_connection="$(read_env CONNECTION_STRING_DEVELOPMENT)"
 
 if [ -z "$password" ] || [ "$password" = "choose-a-long-password" ]; then
   echo "Đặt POSTGRES_PASSWORD trong backend/.env. Mật khẩu này dùng cho container PostgreSQL."
@@ -50,27 +51,34 @@ if [ -z "$seed_password" ] || [ "$seed_password" = "choose-a-long-admin-password
   exit 1
 fi
 
-docker compose up -d postgres
+if [ -z "$development_connection" ]; then
+  docker compose up -d postgres
+else
+  echo "Máy development dùng CONNECTION_STRING_DEVELOPMENT, không bật PostgreSQL local."
+fi
 
-healthy=""
-for _ in $(seq 1 30); do
-  cid="$(docker compose ps -q postgres || true)"
-  if [ -n "$cid" ]; then
-    healthy="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$cid" 2>/dev/null || true)"
-  fi
-  if [ "$healthy" = "healthy" ]; then
-    break
-  fi
-  sleep 2
-done
+if [ -z "$development_connection" ]; then
+  healthy=""
+  for _ in $(seq 1 30); do
+    cid="$(docker compose ps -q postgres || true)"
+    if [ -n "$cid" ]; then
+      healthy="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$cid" 2>/dev/null || true)"
+    fi
+    if [ "$healthy" = "healthy" ]; then
+      break
+    fi
+    sleep 2
+  done
 
-if [ "$healthy" != "healthy" ]; then
-  echo "PostgreSQL chưa healthy. Xem log: docker compose logs postgres --tail 40"
-  exit 1
+  if [ "$healthy" != "healthy" ]; then
+    echo "PostgreSQL chưa healthy. Xem log: docker compose logs postgres --tail 40"
+    exit 1
+  fi
+
+  development_connection="Host=localhost;Port=5432;Database=RoleManagementDb;Username=postgres;Password=${password}"
 fi
 
 dotnet restore
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" \
-  "Host=localhost;Port=5432;Database=RoleManagementDb;Username=postgres;Password=${password}"
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "$development_connection"
 echo "API: http://localhost:5252    Swagger: http://localhost:5252/swagger"
 exec dotnet run --launch-profile http

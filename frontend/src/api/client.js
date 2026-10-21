@@ -1,6 +1,10 @@
 import { clearSession, readSession } from "./session";
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+const configuredBase = import.meta.env.DEV
+  ? import.meta.env.VITE_APP_URL || import.meta.env.VITE_API_BASE_URL || ""
+  : import.meta.env.VITE_API_BASE_URL || "";
+
+const API_BASE = configuredBase.replace(/\/$/, "");
 
 function errorMessage(body, status) {
   if (body && typeof body === "object") {

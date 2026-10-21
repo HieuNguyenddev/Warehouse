@@ -239,10 +239,12 @@ Script trên VPS làm lần lượt:
 1. `cd` vào `DEPLOY_PATH`. Giá trị đúng là `/root/Documents/Warehouse/backend`. Nếu secret còn đường dẫn cũ `.../RoleManagement.Api` mà thư mục đó không có, script tự bỏ phần cuối và vào `backend`.
 2. `git pull --ff-only` ở thư mục gốc repository, nên cả `frontend/` và `backend/` đều được cập nhật.
 3. Vào `$ROOT/backend`, nơi có `docker-compose.yml`. Kiểm tra `frontend/Dockerfile` tồn tại. Thiếu file thì dừng, không deploy bản cũ.
-4. `docker compose up -d --build` build image API và image admin, rồi tạo lại container. Nginx cổng 443 của `admin.minhhieudev.id.vn` chuyển vào container frontend.
-5. Tạo lại container Nginx để nạp `default.conf` mới.
-6. Certbot thêm tên admin vào chứng chỉ. Lỗi Certbot không chặn deploy nếu file chứng chỉ API đã có.
-7. `docker compose exec -T nginx nginx -t` rồi `nginx -s reload`. Admin là `https://admin.minhhieudev.id.vn`. API là `https://api.minhhieudev.id.vn`.
+4. Kiểm tra `POSTGRES_PASSWORD`, `JWT_KEY` và `SEED_PASSWORD` trong `backend/.env`. Thiếu một dòng thì dừng trước `docker compose up`.
+5. Ghi `CONNECTION_STRING` cho container API: `Host=postgres;Port=5432;Database=RoleManagementDb;Username=postgres;Password=` cộng đúng `POSTGRES_PASSWORD`. File VPS cũ chưa có dòng này, hoặc dòng còn host `103.183.120.48`, thì workflow ghi lại. Bên trong Docker, PostgreSQL là service tên `postgres`. IP public chỉ dùng ở `CONNECTION_STRING_DEVELOPMENT` khi `dotnet run` trên máy development.
+6. `docker compose up -d --build` build image API và image admin, rồi tạo lại container. Nginx cổng 443 của `admin.minhhieudev.id.vn` chuyển vào container frontend. API nhận `ConnectionStrings__DefaultConnection` từ `CONNECTION_STRING`.
+7. Tạo lại container Nginx để nạp `default.conf` mới.
+8. Certbot thêm tên admin vào chứng chỉ. Lỗi Certbot không chặn deploy nếu file chứng chỉ API đã có.
+9. `docker compose exec -T nginx nginx -t` rồi `nginx -s reload`. Admin là `https://admin.minhhieudev.id.vn`. API là `https://api.minhhieudev.id.vn`.
 
 | Secret trong `deploy.yml` | Ô trong workflow | Giá trị điền |
 | --- | --- | --- |
@@ -679,7 +681,9 @@ Ubuntu 24.04 cài `dotnet-sdk-10.0` theo các bước trong `backend/README.MD`.
 - Chưa có `backend/.env` thì script copy từ `.env.example`, in nhắc sửa file, rồi dừng. Sửa xong chạy lại đúng lệnh trên.
 - `POSTGRES_PASSWORD` là mật khẩu user `postgres` của container. `JWT_KEY` là chuỗi tự gõ, ít nhất 32 ký tự, ví dụ `KHOA_TU_DAT_IT_NHAT_32_KY_TU`. `SEED_PASSWORD` là mật khẩu admin lúc tạo tài khoản lần đầu, ví dụ `Admin@123`. `SEED_USERNAME` trong file mẫu là `admin`. Đổi thành `Admin` thì đăng nhập đúng chữ đó.
 - Không thêm khoảng trắng hai bên dấu `=`. Không bọc giá trị bằng dấu nháy. Không để nguyên dòng mẫu `choose-a-long-password` hay `replace-with-at-least-32-random-characters`.
-- Script lấy `POSTGRES_PASSWORD` ghi vào user secrets vì `appsettings.json` không chứa mật khẩu. `dotnet run` đọc `JWT_KEY`, `SEED_USERNAME` và `SEED_PASSWORD` từ `.env`.
+- `CONNECTION_STRING` dùng khi API chạy trong Docker, trên máy development lẫn trên VPS. Host là `postgres`. Giá trị là `Host=postgres;Port=5432;Database=RoleManagementDb;Username=postgres;Password=` cộng `POSTGRES_PASSWORD`.
+- `CONNECTION_STRING_DEVELOPMENT` dùng khi `dotnet run` trên máy development. Host là IP VPS `103.183.120.48`, cổng `5432`, cùng database, username và mật khẩu. GitHub Actions không đưa chuỗi này vào container.
+- Workflow deploy ghi lại `CONNECTION_STRING` với `Host=postgres` trước `docker compose up` nếu file trên VPS thiếu dòng đó hoặc host không phải `postgres`. `dotnet run` đọc `JWT_KEY`, `SEED_USERNAME` và `SEED_PASSWORD` từ `.env`.
 - Volume `postgres-data` đã có thì giữ đúng mật khẩu cũ. Sửa `POSTGRES_PASSWORD` trong `.env` không đổi mật khẩu bên trong volume.
 - Lần chạy đầu, API tạo bảng rồi tạo vai trò `Admin` và tài khoản `SEED_USERNAME` nếu tên đó chưa có. Tài khoản đã có thì sửa `.env` không đổi mật khẩu đang lưu. Giữ terminal này mở. `Ctrl+C` dừng API, container PostgreSQL vẫn chạy.
 

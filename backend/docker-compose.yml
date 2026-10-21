@@ -8,7 +8,7 @@ services:
       - "8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=RoleManagementDb;Username=postgres;Password=${POSTGRES_PASSWORD}"
+      ConnectionStrings__DefaultConnection: "${CONNECTION_STRING:?Đặt CONNECTION_STRING trong backend/.env}"
       Jwt__Key: ${JWT_KEY:?Đặt JWT_KEY trong backend/.env, ít nhất 32 ký tự}
       Seed__Username: ${SEED_USERNAME:-admin}
       Seed__Password: ${SEED_PASSWORD:?Đặt SEED_PASSWORD trong backend/.env}

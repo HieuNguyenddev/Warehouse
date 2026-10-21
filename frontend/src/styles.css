@@ -1090,6 +1090,10 @@ tr.is-clickable,
   box-shadow: var(--shadow);
 }
 
+.modal.modal-wide {
+  width: min(100%, 46rem);
+}
+
 .detail-modal {
   width: min(100%, 38rem);
 }
@@ -1183,8 +1187,27 @@ tr.is-clickable,
   gap: 0.75rem;
 }
 
+.field-row-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.form-section {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.form-section h4 {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 @media (max-width: 640px) {
-  .field-row {
+  .field-row,
+  .field-row-3 {
     grid-template-columns: 1fr;
   }
 }
