@@ -442,6 +442,15 @@ select:focus-visible {
   width: 100%;
 }
 
+.turnstile-box {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.turnstile-box small {
+  color: var(--muted);
+}
+
 .login-brand {
   display: flex;
   align-items: center;

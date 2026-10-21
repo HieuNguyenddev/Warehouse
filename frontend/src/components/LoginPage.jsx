@@ -1,14 +1,29 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { login } from "../api/auth";
 import { saveSession } from "../api/session";
 import Icon from "./Icon.jsx";
 import PasswordField from "./PasswordField.jsx";
+import TurnstileWidget, { turnstileSiteKey } from "./TurnstileWidget.jsx";
 
 export default function LoginPage({ onSuccess, theme, onToggleTheme }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileReset, setTurnstileReset] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const needsTurnstile = turnstileSiteKey.length > 0;
+
+  const handleTurnstileToken = useCallback((token) => {
+    setTurnstileToken(token);
+    if (token) {
+      setError("");
+    }
+  }, []);
+
+  const handleTurnstileError = useCallback((message) => {
+    setError(message);
+  }, []);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -16,11 +31,19 @@ export default function LoginPage({ onSuccess, theme, onToggleTheme }) {
     setError("");
 
     try {
+      if (needsTurnstile && !turnstileToken) {
+        setError("Hãy hoàn tất xác thực Cloudflare trước khi đăng nhập.");
+        return;
+      }
+
       const data = await login({
         username: username.trim(),
         password: password.trim(),
+        turnstileToken: turnstileToken || null,
       });
       if (data?.user?.roleName !== "Admin") {
+        setTurnstileToken("");
+        setTurnstileReset((value) => value + 1);
         setError("Tài khoản này không có quyền quản trị.");
         return;
       }
@@ -33,6 +56,8 @@ export default function LoginPage({ onSuccess, theme, onToggleTheme }) {
       saveSession(session);
       onSuccess(session);
     } catch (err) {
+      setTurnstileToken("");
+      setTurnstileReset((value) => value + 1);
       setError(err.message || "Không đăng nhập được.");
     } finally {
       setSubmitting(false);
@@ -93,10 +118,22 @@ export default function LoginPage({ onSuccess, theme, onToggleTheme }) {
           placeholder="Mật khẩu"
         />
 
+        <TurnstileWidget
+          theme={theme}
+          resetKey={turnstileReset}
+          onToken={handleTurnstileToken}
+          onError={handleTurnstileError}
+        />
+
         <button
           type="submit"
           className="primary"
-          disabled={submitting || username.trim() === "" || password.trim() === ""}
+          disabled={
+            submitting
+            || username.trim() === ""
+            || password.trim() === ""
+            || (needsTurnstile && !turnstileToken)
+          }
         >
           <Icon name={submitting ? "fa-spinner fa-spin" : "fa-right-to-bracket"} />
           {submitting ? "Đang đăng nhập…" : "Đăng nhập"}

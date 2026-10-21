@@ -89,6 +89,11 @@ builder.Services.AddHttpClient("provinces", client =>
     client.BaseAddress = new Uri("https://provinces.open-api.vn/");
     client.Timeout = TimeSpan.FromSeconds(15);
 });
+builder.Services.AddHttpClient("turnstile", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddSingleton<TurnstileVerifier>();
 builder.Services.AddSingleton<LocationCatalog>();
 builder.Services.AddSingleton<GarageStorage>();
 builder.Services.AddSingleton<FileStore>();
@@ -220,6 +225,7 @@ static void LoadDotEnv(string path)
     SetFromEnvFile(values, "GARAGE_SECRET_KEY", "Garage__SecretKey");
     SetFromEnvFile(values, "GARAGE_BUCKET", "Garage__Bucket");
     SetFromEnvFile(values, "GARAGE_REGION", "Garage__Region");
+    SetFromEnvFile(values, "TURNSTILE_SECRET_KEY", "Turnstile__SecretKey");
 
     if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")))
     {

@@ -19,6 +19,7 @@ services:
       Garage__Region: garage
       AWS_REQUEST_CHECKSUM_CALCULATION: WHEN_REQUIRED
       AWS_RESPONSE_CHECKSUM_VALIDATION: WHEN_REQUIRED
+      Turnstile__SecretKey: ${TURNSTILE_SECRET_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -31,6 +32,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: https://api.minhhieudev.id.vn
+        VITE_TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
     mem_limit: 64m
     expose:
       - "80"

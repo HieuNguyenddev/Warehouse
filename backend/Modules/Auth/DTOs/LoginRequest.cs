@@ -11,4 +11,7 @@ public class LoginRequest
     [Required(ErrorMessage = "Mật khẩu không được để trống.")]
     [StringLength(100, ErrorMessage = "Mật khẩu tối đa 100 ký tự.")]
     public string Password { get; set; } = string.Empty;
+
+    [StringLength(2048)]
+    public string? TurnstileToken { get; set; }
 }

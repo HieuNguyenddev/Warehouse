@@ -186,6 +186,43 @@ cd /root/Documents/Warehouse/backend
 | `GARAGE_ACCESS_KEY` | Khóa S3, dạng `GK` cộng 30 ký tự hex. `scripts/ensure-garage.sh` sinh nếu thiếu hoặc sai dạng |
 | `GARAGE_SECRET_KEY` | Bí mật của khóa S3, 64 ký tự hex. Cùng script trên |
 | `GARAGE_BUCKET` | Bucket chứa ảnh và tệp. Mặc định `warehouse` |
+| `TURNSTILE_SITE_KEY` | Khóa site Cloudflare Turnstile, gắn vào form đăng nhập lúc build frontend. Để trống thì form không hiện ô xác thực. Cách lấy ở mục dưới |
+| `TURNSTILE_SECRET_KEY` | Secret kiểm tra token trên API trước khi đối chiếu mật khẩu. Để trống thì API bỏ qua bước này. Cách lấy ở mục dưới |
+
+#### Lấy `TURNSTILE_SITE_KEY` và `TURNSTILE_SECRET_KEY`
+
+Đăng nhập [dash.cloudflare.com](https://dash.cloudflare.com/), mở **Turnstile**, bấm **Add Widget**. Góc form có **View docs** trỏ tới tài liệu gốc của Cloudflare. Form tiêu đề **Create a new Turnstile widget** dùng để chặn bot trên trang đăng nhập.
+
+1. **Widget name.** Gõ một tên để nhận ra widget sau này, ví dụ `Warehouse Admin`.
+2. **Hostname Management.** Ô **Hostnames** nhận hostname tự gõ hoặc site đã có trên Cloudflare. Gõ `admin.minhhieudev.id.vn`, đúng host của `https://admin.minhhieudev.id.vn/`, không kèm `https://` và không có dấu `/` cuối. Widget chứa tối đa 10 hostname. Dòng `0 out of 10` nghĩa là chưa có hostname nào. Cloudflare yêu cầu ít nhất 1 hostname trước khi tạo.
+3. **Widget Mode.** Chọn cách ô xác thực hiện trên form đăng nhập:
+   - **Managed**, có nhãn Recommended. Cloudflare tự chọn cách kiểm tra theo mức rủi ro của lượt truy cập. Phần lớn khách gặp bước không cần bấm hoặc không hiện. Khách có rủi ro cao gặp thêm thử thách. Dùng mode này cho trang admin.
+   - **Non-interactive.** Khách thấy vòng xoay trong lúc kiểm tra và không cần bấm. Trải nghiệm giống nhau với mọi lượt truy cập.
+   - **Invisible.** Kiểm tra im lặng, màn hình không hiện gì.
+4. **Skip future security rule challenges for verified visitors.** Ô này là Pre-clearance, bật khi muốn. Khách đã qua Turnstile được bỏ qua các security rule có mức clearance bằng hoặc thấp hơn. Chỉ có tác dụng khi tên miền đi qua proxy Cloudflare. Thời gian bỏ qua lấy từ **Challenge Passage** của domain, mặc định 30 phút. Form đăng nhập vẫn chạy khi để ô này tắt.
+5. Bấm **Create**. Trang sau đó hiện **Site Key** và **Secret Key**. Site Key ghi vào `TURNSTILE_SITE_KEY`. Secret Key ghi vào `TURNSTILE_SECRET_KEY`. Mở lại đúng widget trong danh sách Turnstile khi cần xem lại hai khóa.
+
+Trên VPS, đứng trong `/root/Documents/Warehouse/backend` rồi ghi hai dòng vào `.env`. Thay hai chuỗi mẫu bằng đúng giá trị Cloudflare vừa hiện. Không thêm khoảng trắng hai bên dấu `=`.
+
+```bash
+umask 077
+grep -q '^TURNSTILE_SITE_KEY=.' .env || printf '%s\n' 'TURNSTILE_SITE_KEY=SITE_KEY_TU_CLOUDFLARE' >> .env
+grep -q '^TURNSTILE_SECRET_KEY=.' .env || printf '%s\n' 'TURNSTILE_SECRET_KEY=SECRET_KEY_TU_CLOUDFLARE' >> .env
+chmod 600 .env
+grep -c '^TURNSTILE_SITE_KEY=.' .env
+grep -c '^TURNSTILE_SECRET_KEY=.' .env
+```
+
+- `grep -q` chỉ thêm dòng khi chưa có. Dòng đã có thì sửa tay trong `.env`, không chạy lại hai lệnh `printf`.
+- Mỗi `grep -c` phải in `1`.
+- `TURNSTILE_SECRET_KEY` chỉ nằm trong `.env`. Không `git add` file này.
+- `TURNSTILE_SITE_KEY` được gắn vào image frontend lúc `docker compose build`. `TURNSTILE_SECRET_KEY` được container API đọc lúc khởi động. Đổi khóa xong thì build lại:
+
+```bash
+sudo docker compose up -d --build
+```
+
+Máy development để trống hai dòng này trong `backend/.env` thì API bỏ qua bước kiểm tra. `frontend/.env.development` đang để khóa site thử của Cloudflare để ô xác thực hiện khi `npm run dev`. Khóa thử luôn cho qua. Trang `admin.minhhieudev.id.vn` dùng khóa của widget vừa tạo.
 
 Từ máy đang dùng, SSH vào VPS rồi đứng đúng thư mục Compose:
 

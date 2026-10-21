@@ -10,10 +10,12 @@ namespace RoleManagement.Api.Modules.Auth.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _auth;
+    private readonly TurnstileVerifier _turnstile;
 
-    public AuthController(IAuthService auth)
+    public AuthController(IAuthService auth, TurnstileVerifier turnstile)
     {
         _auth = auth;
+        _turnstile = turnstile;
     }
 
     [AllowAnonymous]
@@ -22,6 +24,27 @@ public class AuthController : ControllerBase
         [FromBody] LoginRequest request,
         CancellationToken cancellationToken)
     {
+        if (_turnstile.IsEnabled)
+        {
+            bool passed;
+            try
+            {
+                passed = await _turnstile.VerifyAsync(
+                    request.TurnstileToken,
+                    ClientIpResolver.Resolve(HttpContext),
+                    cancellationToken);
+            }
+            catch (Exception ex) when ((ex is HttpRequestException or TaskCanceledException) && !cancellationToken.IsCancellationRequested)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new ApiMessage("Không kiểm tra được Cloudflare. Thử lại."));
+            }
+
+            if (!passed)
+            {
+                return BadRequest(new ApiMessage("Hãy hoàn tất xác thực Cloudflare trước khi đăng nhập."));
+            }
+        }
+
         var result = await _auth.LoginAsync(request, ClientIpResolver.Resolve(HttpContext), cancellationToken);
         if (!result.Succeeded)
         {
