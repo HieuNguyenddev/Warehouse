@@ -139,6 +139,7 @@ export default function UserTable({
                 <span>
                   <Icon name="fa-right-to-bracket" /> {user.lastLoginAt ? formatDate(user.lastLoginAt) : "Chưa đăng nhập"}
                   {user.lastLoginIp ? ` · ${user.lastLoginIp}` : ""}
+                  {` · Sai ${user.failedLoginCount || 0}`}
                 </span>
                 <span>
                   <Icon name="fa-calendar-plus" /> {formatDate(user.createdAt)}
@@ -157,18 +158,14 @@ export default function UserTable({
         })}
       </ul>
       <div className="table-wrap">
-        <table>
+        <table className="users-table">
           <thead>
             <tr>
               <th>Người dùng</th>
               <th>Vai trò</th>
               <th>Trạng thái</th>
-              <th>Sai</th>
-              <th>Đăng nhập cuối</th>
-              <th>IP</th>
-              <th>Tạo lúc</th>
-              <th>Cập nhật</th>
-              <th>Xóa mềm</th>
+              <th>Đăng nhập</th>
+              <th>Thời gian</th>
             </tr>
           </thead>
           <tbody>
@@ -199,27 +196,19 @@ export default function UserTable({
                   <td>
                     <span className={`status-pill is-${accountStatus(user).tone}`}>{accountStatus(user).label}</span>
                   </td>
-                  <td>{user.failedLoginCount || 0}</td>
-                  <td className="when">
-                    {user.lastLoginAt ? formatDate(user.lastLoginAt) : <span className="muted">Chưa đăng nhập</span>}
+                  <td>
+                    <div className="cell-stack">
+                      <strong>{user.lastLoginAt ? formatDate(user.lastLoginAt) : "Chưa đăng nhập"}</strong>
+                      <span>{user.lastLoginIp || "Chưa có IP"}</span>
+                      <span>Sai {user.failedLoginCount || 0} lần</span>
+                    </div>
                   </td>
-                  <td className="ip">{user.lastLoginIp || <span className="muted">—</span>}</td>
-                  <td className="when">
-                    <Icon name="fa-calendar-plus" />
-                    {formatDate(user.createdAt)}
-                  </td>
-                  <td className="when">
-                    {user.updatedAt ? (
-                      <>
-                        <Icon name="fa-clock-rotate-left" />
-                        {formatDate(user.updatedAt)}
-                      </>
-                    ) : (
-                      <span className="muted">Chưa cập nhật</span>
-                    )}
-                  </td>
-                  <td className="when">
-                    {user.deletedAt ? formatDate(user.deletedAt) : <span className="muted">—</span>}
+                  <td>
+                    <div className="cell-stack">
+                      <span>Tạo {formatDate(user.createdAt)}</span>
+                      <span>Cập nhật {user.updatedAt ? formatDate(user.updatedAt) : "—"}</span>
+                      {user.deletedAt ? <span className="is-removed">Xóa {formatDate(user.deletedAt)}</span> : null}
+                    </div>
                   </td>
                 </tr>
               );

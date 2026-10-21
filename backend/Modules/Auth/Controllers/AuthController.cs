@@ -22,27 +22,12 @@ public class AuthController : ControllerBase
         [FromBody] LoginRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _auth.LoginAsync(request, ClientIp(), cancellationToken);
+        var result = await _auth.LoginAsync(request, ClientIpResolver.Resolve(HttpContext), cancellationToken);
         if (!result.Succeeded)
         {
             return Unauthorized(new ApiMessage(result.Message ?? "Tên đăng nhập hoặc mật khẩu không đúng."));
         }
 
         return Ok(result.Response);
-    }
-
-    private string? ClientIp()
-    {
-        var forwarded = Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(forwarded))
-        {
-            var first = forwarded.Split(',')[0].Trim();
-            if (first.Length > 0)
-            {
-                return first;
-            }
-        }
-
-        return HttpContext.Connection.RemoteIpAddress?.ToString();
     }
 }

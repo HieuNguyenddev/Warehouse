@@ -56,7 +56,11 @@ public class AuthService : IAuthService
 
         user.FailedLoginCount = 0;
         user.LastLoginAt = DateTime.UtcNow;
-        user.LastLoginIp = NormalizeIp(clientIp);
+        if (!string.IsNullOrWhiteSpace(clientIp))
+        {
+            user.LastLoginIp = clientIp;
+        }
+
         user.UpdatedAt = user.LastLoginAt;
         await _users.SaveAsync(cancellationToken);
 
@@ -67,21 +71,5 @@ public class AuthService : IAuthService
             ExpiresAt = expiresAt,
             User = UserResponse.From(user),
         });
-    }
-
-    private static string? NormalizeIp(string? clientIp)
-    {
-        if (string.IsNullOrWhiteSpace(clientIp))
-        {
-            return null;
-        }
-
-        var ip = clientIp.Trim();
-        if (ip == "::1")
-        {
-            ip = "127.0.0.1";
-        }
-
-        return ip.Length <= 45 ? ip : ip[..45];
     }
 }
