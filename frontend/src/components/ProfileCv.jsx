@@ -11,10 +11,12 @@ const LAYOUT_KEY = "warehouse.cvLayout";
 const FIELD_META = {
   phoneNumber: { label: "Điện thoại", maxLength: 20, inputMode: "tel" },
   email: { label: "Email", kind: "email", maxLength: 100 },
-  address: { label: "Địa chỉ", maxLength: 255 },
-  permanentAddress: { label: "Thường trú", maxLength: 255 },
-  provinceCode: { label: "Tỉnh / thành phố", kind: "province" },
-  wardCode: { label: "Xã / phường", kind: "ward" },
+  address: { label: "Số nhà, đường (hiện tại)", maxLength: 255 },
+  provinceCode: { label: "Tỉnh / thành (hiện tại)", kind: "province" },
+  wardCode: { label: "Xã / phường (hiện tại)", kind: "ward" },
+  permanentAddress: { label: "Số nhà, đường (thường trú)", maxLength: 255 },
+  permanentProvinceCode: { label: "Tỉnh / thành (thường trú)", kind: "province" },
+  permanentWardCode: { label: "Xã / phường (thường trú)", kind: "ward" },
   dateOfBirth: { label: "Ngày sinh", kind: "date" },
   gender: { label: "Giới tính", kind: "gender" },
   placeOfBirth: { label: "Nơi sinh", maxLength: 150 },
@@ -33,7 +35,7 @@ const FIELD_META = {
 
 const DEFAULT_LAYOUT = [
   { id: "job", title: "Công việc", fields: [] },
-  { id: "contact", title: "Liên hệ", fields: ["phoneNumber", "email", "address", "permanentAddress", "provinceCode", "wardCode"] },
+  { id: "contact", title: "Liên hệ", fields: ["phoneNumber", "email", "provinceCode", "wardCode", "address", "permanentProvinceCode", "permanentWardCode", "permanentAddress"] },
   { id: "person", title: "Nhân thân", fields: ["dateOfBirth", "gender", "placeOfBirth", "nationality", "ethnicity", "religion", "maritalStatus", "educationLevel"] },
   { id: "papers", title: "Giấy tờ", fields: ["identityNumber", "identityIssuedDate", "identityIssuedPlace"] },
   { id: "qualifications", title: "Bằng cấp & chứng chỉ", fields: [] },
@@ -155,6 +157,7 @@ export default function ProfileCv({
   saving,
   onSelect,
   onProvince,
+  wardLists = {},
   onSave,
   onDelete,
   onCreate,
@@ -244,8 +247,14 @@ export default function ProfileCv({
   }, [layout]);
 
   useEffect(() => {
-    onProvince(draft?.provinceCode || "");
-  }, [draft?.provinceCode, onProvince]);
+    if (!onProvince) {
+      return;
+    }
+    onProvince({
+      current: draft?.provinceCode || "",
+      permanent: draft?.permanentProvinceCode || "",
+    });
+  }, [draft?.provinceCode, draft?.permanentProvinceCode, onProvince]);
 
   useEffect(() => {
     function onKey(event) {
@@ -573,11 +582,24 @@ export default function ProfileCv({
                             meta={meta}
                             value={draft[key] || ""}
                             provinces={provinces}
-                            wards={key === "wardCode" && !draft.provinceCode ? [] : wards}
-                            disabled={key === "wardCode" && !draft.provinceCode}
+                            wards={
+                              key === "permanentWardCode"
+                                ? (wardLists[String(draft.permanentProvinceCode || "")] || [])
+                                : key === "wardCode"
+                                  ? (wardLists[String(draft.provinceCode || "")] || [])
+                                  : wards
+                            }
+                            disabled={
+                              (key === "wardCode" && !draft.provinceCode)
+                              || (key === "permanentWardCode" && !draft.permanentProvinceCode)
+                            }
                             onChange={(value) => {
                               if (key === "provinceCode") {
                                 patch({ provinceCode: value, wardCode: "" });
+                                return;
+                              }
+                              if (key === "permanentProvinceCode") {
+                                patch({ permanentProvinceCode: value, permanentWardCode: "" });
                                 return;
                               }
                               patch({ [key]: value });

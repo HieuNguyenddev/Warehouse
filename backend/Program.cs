@@ -8,6 +8,7 @@ using Microsoft.OpenApi;
 using Npgsql;
 using RoleManagement.Api.Data;
 using RoleManagement.Api.Modules.Auth;
+using RoleManagement.Api.Modules.Chat;
 using RoleManagement.Api.Modules.Auth.Services;
 using RoleManagement.Api.Modules.Files;
 using RoleManagement.Api.Modules.Locations.Services;
@@ -97,6 +98,12 @@ builder.Services.AddHttpClient("turnstile", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(10);
 });
+builder.Services.Configure<OllamaOptions>(builder.Configuration.GetSection(OllamaOptions.SectionName));
+builder.Services.AddHttpClient("ollama", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(180);
+});
+builder.Services.AddSingleton<OllamaClient>();
 builder.Services.AddSingleton<TurnstileVerifier>();
 builder.Services.AddSingleton<LocationCatalog>();
 builder.Services.AddSingleton<GarageStorage>();
@@ -234,6 +241,8 @@ static void LoadDotEnv(string path)
     SetFromEnvFile(values, "GARAGE_BUCKET", "Garage__Bucket");
     SetFromEnvFile(values, "GARAGE_REGION", "Garage__Region");
     SetFromEnvFile(values, "TURNSTILE_SECRET_KEY", "Turnstile__SecretKey");
+    SetFromEnvFile(values, "OLLAMA_URL", "Ollama__BaseUrl");
+    SetFromEnvFile(values, "OLLAMA_MODEL", "Ollama__Model");
 
     if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")))
     {

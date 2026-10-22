@@ -6,6 +6,35 @@ import ProfileHistory from "./ProfileHistory.jsx";
 import ProfileJobFields from "./ProfileJobFields.jsx";
 import { employeePrefix, genderOptions, maritalOptions } from "./profileLabels.js";
 
+function PlaceSelects({ provinces, wards, provinceCode, wardCode, loading, disabled, onProvince, onWard }) {
+  return (
+    <div className="field-row">
+      <Field icon="fa-map" label="Tỉnh / thành phố">
+        <select value={provinceCode} disabled={disabled || (loading && provinces.length === 0)} onChange={(event) => onProvince(event.target.value)}>
+          <option value="">{loading && provinces.length === 0 ? "Đang tải danh mục…" : "Chọn tỉnh, thành phố"}</option>
+          {provinceCode && !provinces.some((item) => item.code === provinceCode) ? (
+            <option value={provinceCode}>{provinceCode}</option>
+          ) : null}
+          {provinces.map((item) => (
+            <option key={item.code} value={item.code}>{item.name}</option>
+          ))}
+        </select>
+      </Field>
+      <Field icon="fa-map" label="Xã / phường">
+        <select value={wardCode} disabled={disabled || !provinceCode} onChange={(event) => onWard(event.target.value)}>
+          <option value="">{provinceCode ? "Chọn xã, phường" : "Chọn tỉnh trước"}</option>
+          {wardCode && !wards.some((item) => item.code === wardCode) ? (
+            <option value={wardCode}>{wardCode}</option>
+          ) : null}
+          {wards.map((item) => (
+            <option key={item.code} value={item.code}>{item.name}</option>
+          ))}
+        </select>
+      </Field>
+    </div>
+  );
+}
+
 function Field({ icon, label, children, hint, warn }) {
   return (
     <label className="field">
@@ -29,7 +58,7 @@ export default function UserProfileForm({
   onSubmit,
   onCancel,
   provinces = [],
-  wards = [],
+  wardLists = {},
   placesError = "",
   placesLoading = false,
   positions = [],
@@ -40,6 +69,11 @@ export default function UserProfileForm({
   onRecordsChanged,
 }) {
   const nameRef = useRef(null);
+  const [sameResidence, setSameResidence] = useState(false);
+
+  useEffect(() => {
+    setSameResidence(false);
+  }, [editingId]);
   const fileRef = useRef(null);
   const isEdit = editingId != null;
   const selectedPosition = positions.find((item) => String(item.id) === String(form.positionId));
@@ -238,48 +272,72 @@ export default function UserProfileForm({
             <input type="email" maxLength={100} value={form.email} onChange={(event) => set({ email: event.target.value })} placeholder="ten@email.com" />
           </Field>
         </div>
-        <Field icon="fa-house" label="Nơi ở hiện tại" hint={`${form.address.length}/255`}>
-          <input maxLength={255} value={form.address} onChange={(event) => set({ address: event.target.value })} />
+        <h4>Nơi ở hiện tại</h4>
+        <PlaceSelects
+          provinces={provinces}
+          wards={wardLists[String(form.provinceCode || "")] || []}
+          provinceCode={form.provinceCode}
+          wardCode={form.wardCode}
+          loading={placesLoading}
+          onProvince={(value) => set({
+            provinceCode: value,
+            wardCode: "",
+            ...(sameResidence ? { permanentProvinceCode: value, permanentWardCode: "" } : {}),
+          })}
+          onWard={(value) => set({
+            wardCode: value,
+            ...(sameResidence ? { permanentWardCode: value } : {}),
+          })}
+        />
+        <Field icon="fa-house" label="Số nhà, đường" hint={`${form.address.length}/255`}>
+          <input
+            maxLength={255}
+            value={form.address}
+            onChange={(event) => set({
+              address: event.target.value,
+              ...(sameResidence ? { permanentAddress: event.target.value } : {}),
+            })}
+            placeholder="Số nhà, đường, thôn"
+          />
         </Field>
-        <Field icon="fa-house-chimney" label="Thường trú" hint={`${form.permanentAddress.length}/255`}>
-          <input maxLength={255} value={form.permanentAddress} onChange={(event) => set({ permanentAddress: event.target.value })} />
+        <h4>Thường trú</h4>
+        <label className="check-row">
+          <input
+            type="checkbox"
+            checked={sameResidence}
+            onChange={(event) => {
+              const checked = event.target.checked;
+              setSameResidence(checked);
+              if (checked) {
+                set({
+                  permanentProvinceCode: form.provinceCode,
+                  permanentWardCode: form.wardCode,
+                  permanentAddress: form.address,
+                });
+              }
+            }}
+          />
+          <span>Giống nơi ở hiện tại</span>
+        </label>
+        <PlaceSelects
+          provinces={provinces}
+          wards={wardLists[String(form.permanentProvinceCode || "")] || []}
+          provinceCode={form.permanentProvinceCode}
+          wardCode={form.permanentWardCode}
+          loading={placesLoading}
+          disabled={sameResidence}
+          onProvince={(value) => set({ permanentProvinceCode: value, permanentWardCode: "" })}
+          onWard={(value) => set({ permanentWardCode: value })}
+        />
+        <Field icon="fa-house-chimney" label="Số nhà, đường" hint={`${form.permanentAddress.length}/255`}>
+          <input
+            maxLength={255}
+            value={form.permanentAddress}
+            disabled={sameResidence}
+            onChange={(event) => set({ permanentAddress: event.target.value })}
+            placeholder="Số nhà, đường, thôn"
+          />
         </Field>
-        <div className="field-row">
-          <Field icon="fa-map" label="Tỉnh / thành phố">
-            <select
-              value={form.provinceCode}
-              onChange={(event) => set({ provinceCode: event.target.value, wardCode: "" })}
-              disabled={placesLoading && provinces.length === 0}
-            >
-              <option value="">{placesLoading ? "Đang tải danh mục…" : "Chọn tỉnh, thành phố"}</option>
-              {form.provinceCode && !provinces.some((item) => item.code === form.provinceCode) ? (
-                <option value={form.provinceCode}>{form.provinceCode}</option>
-              ) : null}
-              {provinces.map((item) => (
-                <option key={item.code} value={item.code}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field icon="fa-map" label="Xã / phường">
-            <select
-              value={form.wardCode}
-              onChange={(event) => set({ wardCode: event.target.value })}
-              disabled={!form.provinceCode}
-            >
-              <option value="">{form.provinceCode ? "Chọn xã, phường" : "Chọn tỉnh trước"}</option>
-              {form.wardCode && !wards.some((item) => item.code === form.wardCode) ? (
-                <option value={form.wardCode}>{form.wardCode}</option>
-              ) : null}
-              {wards.map((item) => (
-                <option key={item.code} value={item.code}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
         {placesError ? <small className="count is-warn">{placesError}</small> : null}
       </section>
 

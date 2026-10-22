@@ -47,6 +47,12 @@ public class UserProfileRequest
     [StringLength(20, ErrorMessage = "Mã xã tối đa 20 ký tự.")]
     public string? WardCode { get; set; }
 
+    [StringLength(20, ErrorMessage = "Mã tỉnh thường trú tối đa 20 ký tự.")]
+    public string? PermanentProvinceCode { get; set; }
+
+    [StringLength(20, ErrorMessage = "Mã xã thường trú tối đa 20 ký tự.")]
+    public string? PermanentWardCode { get; set; }
+
     [StringLength(150, ErrorMessage = "Nơi sinh tối đa 150 ký tự.")]
     public string? PlaceOfBirth { get; set; }
 

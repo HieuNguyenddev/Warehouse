@@ -202,10 +202,8 @@ export default function UserProfileTable({
             { label: "Nơi cấp", value: show(selected.identityIssuedPlace), wide: true },
             { label: "Số điện thoại", value: show(selected.phoneNumber) },
             { label: "Email", value: show(selected.email) },
-            { label: "Nơi ở hiện tại", value: show(selected.address), wide: true },
-            { label: "Thường trú", value: show(selected.permanentAddress), wide: true },
-            { label: "Tỉnh / thành phố", value: show(placeOf(selected).province || selected.provinceCode) },
-            { label: "Xã / phường", value: show(placeOf(selected).ward || selected.wardCode) },
+            { label: "Nơi ở hiện tại", value: [placeOf(selected).ward, placeOf(selected).province, selected.address].filter(Boolean).join(", ") || "—", wide: true },
+            { label: "Thường trú", value: [placeOf(selected).permanentWard, placeOf(selected).permanentProvince, selected.permanentAddress].filter(Boolean).join(", ") || "—", wide: true },
             { label: "Trình độ", value: show(selected.educationLevel) },
             {
               label: "Bằng cấp & chứng chỉ",

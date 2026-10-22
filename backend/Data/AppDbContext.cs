@@ -177,6 +177,12 @@ public class AppDbContext : DbContext
             entity.Property(profile => profile.WardCode)
                 .HasMaxLength(20);
 
+            entity.Property(profile => profile.PermanentProvinceCode)
+                .HasMaxLength(20);
+
+            entity.Property(profile => profile.PermanentWardCode)
+                .HasMaxLength(20);
+
             entity.Property(profile => profile.PlaceOfBirth)
                 .HasMaxLength(150);
 

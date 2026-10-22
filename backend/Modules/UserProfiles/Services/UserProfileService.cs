@@ -264,6 +264,8 @@ public class UserProfileService : IUserProfileService
         profile.ProvinceCode = normalized.ProvinceCode;
         profile.DistrictCode = null;
         profile.WardCode = normalized.WardCode;
+        profile.PermanentProvinceCode = normalized.PermanentProvinceCode;
+        profile.PermanentWardCode = normalized.PermanentWardCode;
         profile.PlaceOfBirth = normalized.PlaceOfBirth;
         profile.Nationality = normalized.Nationality;
         profile.Ethnicity = normalized.Ethnicity;
@@ -347,6 +349,8 @@ public class UserProfileService : IUserProfileService
             ProvinceCode = Text(request.ProvinceCode),
             DistrictCode = Text(request.DistrictCode),
             WardCode = Text(request.WardCode),
+            PermanentProvinceCode = Text(request.PermanentProvinceCode),
+            PermanentWardCode = Text(request.PermanentWardCode),
             PlaceOfBirth = Text(request.PlaceOfBirth),
             Nationality = Text(request.Nationality),
             Ethnicity = Text(request.Ethnicity),
@@ -481,6 +485,10 @@ public class UserProfileService : IUserProfileService
         public string? DistrictCode { get; init; }
 
         public string? WardCode { get; init; }
+
+        public string? PermanentProvinceCode { get; init; }
+
+        public string? PermanentWardCode { get; init; }
 
         public string? PlaceOfBirth { get; init; }
 

@@ -52,7 +52,7 @@ export default function UserProfilesPage({ onCount }) {
   const [order, setOrder] = useState(readOrder);
   const [cvOpen, setCvOpen] = useState(false);
   const [cvProfileId, setCvProfileId] = useState(null);
-  const [cvProvince, setCvProvince] = useState("");
+  const [cvProvinces, setCvProvinces] = useState({ current: "", permanent: "" });
 
   const applyProfile = useCallback((saved) => {
     if (!saved?.id) {
@@ -143,7 +143,12 @@ export default function UserProfilesPage({ onCount }) {
     };
   }, [formOpen, pendingDelete, cvOpen, saving, deleting]);
 
-  const places = usePlaceNames(profiles, cvProvince || form.provinceCode);
+  const places = usePlaceNames(profiles, [
+    cvProvinces.current,
+    cvProvinces.permanent,
+    form.provinceCode,
+    form.permanentProvinceCode,
+  ]);
 
   useEffect(() => {
     window.localStorage.setItem(VIEW_KEY, view);
@@ -190,7 +195,11 @@ export default function UserProfilesPage({ onCount }) {
         profile.positionName,
         profile.positionCode,
         profile.address,
-        places.placeLabel(profile),
+        profile.permanentAddress,
+        places.placeOf(profile).province,
+        places.placeOf(profile).ward,
+        places.placeOf(profile).permanentProvince,
+        places.placeOf(profile).permanentWard,
       ]
         .join(" ")
         .toLowerCase()
@@ -486,7 +495,8 @@ export default function UserProfilesPage({ onCount }) {
           placesError={places.error}
           saving={saving}
           onSelect={setCvProfileId}
-          onProvince={setCvProvince}
+          onProvince={setCvProvinces}
+          wardLists={places.wardLists}
           onSave={saveCv}
           onDelete={setPendingDelete}
           onCreate={openCreate}
@@ -519,7 +529,7 @@ export default function UserProfilesPage({ onCount }) {
               onSubmit={handleSubmit}
               onCancel={closeForm}
               provinces={places.provinces}
-              wards={places.wards}
+              wardLists={places.wardLists}
               placesError={places.error}
               placesLoading={places.loading}
               positions={positions}

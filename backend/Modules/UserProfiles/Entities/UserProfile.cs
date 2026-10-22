@@ -38,6 +38,10 @@ public class UserProfile
 
     public string? WardCode { get; set; }
 
+    public string? PermanentProvinceCode { get; set; }
+
+    public string? PermanentWardCode { get; set; }
+
     public string? PlaceOfBirth { get; set; }
 
     public string? Nationality { get; set; }

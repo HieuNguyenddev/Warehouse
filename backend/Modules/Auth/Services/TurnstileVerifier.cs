@@ -5,15 +5,24 @@ namespace RoleManagement.Api.Modules.Auth.Services;
 public class TurnstileVerifier
 {
     private readonly IHttpClientFactory _http;
+    private readonly IHostEnvironment _environment;
     private readonly string? _secret;
 
-    public TurnstileVerifier(IHttpClientFactory http, IConfiguration configuration)
+    public TurnstileVerifier(IHttpClientFactory http, IHostEnvironment environment, IConfiguration configuration)
     {
         _http = http;
+        _environment = environment;
         _secret = configuration["Turnstile:SecretKey"];
     }
 
-    public bool IsEnabled => !string.IsNullOrWhiteSpace(_secret);
+    public bool IsEnabled => !string.IsNullOrWhiteSpace(_secret) && !IsLocalDevelopment;
+
+    private bool IsLocalDevelopment =>
+        _environment.IsDevelopment()
+        && !string.Equals(
+            Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"),
+            "true",
+            StringComparison.OrdinalIgnoreCase);
 
     public async Task<bool> VerifyAsync(string? token, string? remoteIp, CancellationToken cancellationToken)
     {

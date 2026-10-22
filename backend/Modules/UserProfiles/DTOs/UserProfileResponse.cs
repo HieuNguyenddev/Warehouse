@@ -48,6 +48,10 @@ public class UserProfileResponse
 
     public string? WardCode { get; set; }
 
+    public string? PermanentProvinceCode { get; set; }
+
+    public string? PermanentWardCode { get; set; }
+
     public string? PlaceOfBirth { get; set; }
 
     public string? Nationality { get; set; }
@@ -98,6 +102,8 @@ public class UserProfileResponse
             ProvinceCode = profile.ProvinceCode,
             DistrictCode = profile.DistrictCode,
             WardCode = profile.WardCode,
+            PermanentProvinceCode = profile.PermanentProvinceCode,
+            PermanentWardCode = profile.PermanentWardCode,
             PlaceOfBirth = profile.PlaceOfBirth,
             Nationality = profile.Nationality,
             Ethnicity = profile.Ethnicity,

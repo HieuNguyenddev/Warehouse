@@ -30,7 +30,9 @@ function loadScript() {
   return scriptPromise;
 }
 
-export const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
+export const turnstileSiteKey = import.meta.env.DEV
+  ? ""
+  : (import.meta.env.VITE_TURNSTILE_SITE_KEY || "");
 
 export default function TurnstileWidget({ theme, resetKey, onToken, onError }) {
   const hostRef = useRef(null);

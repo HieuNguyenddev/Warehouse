@@ -709,3 +709,50 @@ Dừng database khi không sửa mã nữa:
 ```
 
 - `stop` chạy `docker compose stop postgres`. Volume `postgres-data` được giữ. Lần sau `./scripts/run-backend.sh` dùng lại dữ liệu cũ.
+
+## 13. Chatbot Ollama trên VPS 2 GB
+
+Menu **Trợ lý** gửi câu hỏi tới API. Trên VPS Ubuntu 24.04 (1 CPU, 2 GB RAM, 25 GB đĩa), Ollama chạy trong Compose và tải `qwen2.5:0.5b`. File mô hình 397 MB, lúc trả lời chiếm khoảng 452 MB RAM. Cổng `11434` không mở ra internet. Các bước máy development nằm ở mục 4 trong `backend/README.MD`.
+
+Giới hạn bộ nhớ trong `docker-compose.yml`: API 320 MB, PostgreSQL 192 MB, Garage 128 MB, Ollama 640 MB, frontend 32 MB, Nginx 24 MB. Ollama giữ một mô hình, một lượt, ngữ cảnh 2048 token, và nhả mô hình sau 2 phút không dùng.
+
+### 13.1. Thêm 1 GB swap
+
+SSH vào VPS. Làm một lần nếu `swapon --show` chưa có dòng nào. Swap tránh tiến trình bị hệ thống giết khi câu đầu nạp mô hình.
+
+```bash
+ssh -p 22 root@103.183.120.48
+sudo fallocate -l 1G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+free -h
+```
+
+- `free -h` phải thấy Swap khoảng 1,0 Gi. Đĩa 25 GB còn chỗ cho file này.
+- Nếu máy đã cài Ollama bằng systemd từ trước, tắt dịch vụ đó để không chiếm thêm RAM: `sudo systemctl disable --now ollama`.
+
+### 13.2. Compose tải Ollama và qwen2.5:0.5b
+
+Đứng trong thư mục Compose. Container API gọi `http://ollama:11434`. Để trống hai biến thì Compose dùng URL đó và mô hình `qwen2.5:0.5b`. Trên VPS không ghi `OLLAMA_URL=http://127.0.0.1:11434`.
+
+```bash
+cd /root/Documents/Warehouse/backend
+sudo docker compose up -d --build
+sudo docker compose ps
+sudo docker compose exec -T ollama ollama list
+sudo docker compose exec -T api printenv Ollama__BaseUrl Ollama__Model
+```
+
+- Lần đầu `ollama-pull` tải image `ollama/ollama:0.32.15` và mô hình `qwen2.5:0.5b`. Xong thì container đó thoát với mã 0. API chỉ chạy sau bước này.
+- `ollama list` phải có `qwen2.5:0.5b`.
+- `printenv` phải in `http://ollama:11434` và `qwen2.5:0.5b`.
+
+### 13.3. Kiểm tra trên admin
+
+Mở `https://admin.minhhieudev.id.vn`, đăng nhập tài khoản Admin, bấm **Trợ lý**. Ô mô hình là `qwen2.5:0.5b`. Gửi một câu ngắn. Enter gửi, Shift+Enter xuống dòng. Câu đầu hơi chậm vì mô hình đang nạp. Câu sau trong vòng 2 phút nhanh hơn.
+
+- **Không kết nối được Ollama**: `sudo docker compose ps` không thấy `ollama` đang chạy, hoặc `.env` vẫn ghi `127.0.0.1`.
+- **Ollama chưa có mô hình chat**: `sudo docker compose up -d --build` để `ollama-pull` chạy lại.
+- **Container bị kill hoặc máy đơ**: `docker stats --no-stream`. Ollama trên máy này giữ trần 640 MB.

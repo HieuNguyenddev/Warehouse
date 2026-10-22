@@ -385,3 +385,75 @@ sudo docker compose down
 | `DELETE` | `/api/roles/{id}` | `204` khi xóa xong |
 
 `name` bắt buộc, tối đa 50 ký tự. `description` tối đa 250 ký tự.
+
+| Phương thức | Đường dẫn | Kết quả |
+| --- | --- | --- |
+| `GET` | `/api/chat/models` | `{ configured, defaultModel, models, notice }`. Cần token Admin. Ollama không chạy thì danh sách lỗi kết nối |
+| `POST` | `/api/chat/messages` | Body `{ "model", "messages": [{ "role": "user"\|"assistant", "content" }] }`. Trả `{ reply, model }` |
+
+`messages` từ 1 đến 20 lượt. Mỗi `content` tối đa 4000 ký tự. Lượt cuối phải là `user`. API gửi Ollama tối đa 4 lượt gần nhất, mỗi lượt cắt còn 800 ký tự, ngữ cảnh 2048 token. Trình duyệt không gọi Ollama trực tiếp.
+
+## 4. Chatbot với Ollama
+
+Trang **Trợ lý** gửi câu hỏi tới API. API gọi Ollama tại `POST /api/chat`. Ollama không cần khóa API.
+
+| Biến | Ý nghĩa |
+| --- | --- |
+| `OLLAMA_URL` | Gốc của Ollama, không có `/api` ở cuối. Máy development để trống hoặc ghi `http://127.0.0.1:11434`. Compose trên VPS để trống để dùng `http://ollama:11434` |
+| `OLLAMA_MODEL` | Tên trong `ollama list`. Để trống thì API chọn `qwen2.5:0.5b` nếu máy đã pull mô hình đó. VPS 1 CPU / 2 GB RAM / 25 GB đĩa dùng đúng tên này |
+
+Để trống `OLLAMA_MODEL`, API chọn mô hình chat đã có theo thứ tự `qwen2.5:0.5b`, `qwen3:0.6b`, `qwen3:1.7b`, `qwen3:4b`, `qwen3:8b`. Bỏ qua mô hình embedding.
+
+### 4.1. Máy development
+
+Ollama nghe cổng `11434`. macOS:
+
+```bash
+brew install ollama
+brew services start ollama
+ollama pull qwen2.5:0.5b
+ollama list
+curl -s http://127.0.0.1:11434/api/tags
+```
+
+- `ollama list` đã có `qwen2.5:0.5b` thì không cần pull lại.
+- Muốn cố định mô hình, thêm `OLLAMA_URL=http://127.0.0.1:11434` và `OLLAMA_MODEL=qwen2.5:0.5b` vào `backend/.env`, rồi khởi động lại API.
+
+```bash
+./scripts/run-backend.sh
+```
+
+Frontend: `cd frontend && npm install && npm run dev`. Đăng nhập, mở **Trợ lý**, gửi một câu.
+
+### 4.2. VPS Ubuntu 24.04, 1 CPU, 2 GB RAM, 25 GB đĩa
+
+Ollama nằm trong Compose, image `ollama/ollama:0.32.15`, giới hạn 640 MB. Service `ollama-pull` chạy `ollama pull qwen2.5:0.5b` một lần rồi thoát. API chờ lệnh đó xong. Nếu máy đã có dịch vụ Ollama của systemd, tắt trước để khỏi chiếm RAM: `sudo systemctl disable --now ollama`.
+
+Thêm 1 GB swap nếu `swapon --show` trống:
+
+```bash
+sudo fallocate -l 1G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+Rồi dựng stack. Không ghi `OLLAMA_URL` trỏ `127.0.0.1` trong `.env` trên VPS.
+
+```bash
+cd /root/Documents/Warehouse/backend
+sudo docker compose up -d --build
+sudo docker compose exec -T ollama ollama list
+sudo docker compose exec -T api printenv Ollama__BaseUrl Ollama__Model
+```
+
+- `ollama list` phải có `qwen2.5:0.5b`.
+- `printenv` phải in `http://ollama:11434` và `qwen2.5:0.5b`.
+- `docker stats --no-stream` khi đang trả lời thấy Ollama quanh 452 MB và dưới trần 640 MB.
+
+Mở admin, vào **Trợ lý**, gửi một câu ngắn. Lỗi thường gặp:
+
+- **Không kết nối được Ollama**: container `ollama` không chạy, hoặc `.env` ghi `127.0.0.1`.
+- **Ollama chưa có mô hình chat**: chạy lại `sudo docker compose up -d --build`.
+- **Ollama từ chối câu trả lời**: `OLLAMA_MODEL` không khớp tên trong `ollama list`.

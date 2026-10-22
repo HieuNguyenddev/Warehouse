@@ -8,6 +8,7 @@ import { clearSession, readSession } from "./api/session";
 import { getUserProfiles } from "./api/userProfiles";
 import { getUsers } from "./api/users";
 import AvatarPhoto from "./components/AvatarPhoto.jsx";
+import ChatPage from "./components/ChatPage.jsx";
 import FilesPage from "./components/FilesPage.jsx";
 import Icon from "./components/Icon.jsx";
 import LoginPage from "./components/LoginPage.jsx";
@@ -436,6 +437,16 @@ export default function App() {
               <span>Tệp</span>
               <em>{fileCount}</em>
             </button>
+            <button
+              type="button"
+              className={page === "chat" ? "nav-item is-active" : "nav-item"}
+              aria-current={page === "chat" ? "page" : undefined}
+              title={collapsed ? "Trợ lý" : undefined}
+              onClick={() => openPage("chat")}
+            >
+              <Icon name="fa-comments" />
+              <span>Trợ lý</span>
+            </button>
           </nav>
 
           <div className="sidebar-user">
@@ -444,7 +455,9 @@ export default function App() {
           </div>
         </aside>
 
-        {page === "users" ? (
+        {page === "chat" ? (
+          <ChatPage />
+        ) : page === "users" ? (
           <UsersPage onCount={setUserTotal} onOpenRoles={openRoles} />
         ) : page === "files" ? (
           <FilesPage onCount={setFileTotal} />

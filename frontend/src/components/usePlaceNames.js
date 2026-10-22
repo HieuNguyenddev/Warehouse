@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getProvinces, getWards } from "../api/locations";
 
-export function usePlaceNames(profiles, activeProvinceCode) {
+export function usePlaceNames(profiles, activeProvinceCodes = []) {
   const [provinces, setProvinces] = useState([]);
   const [wardsByProvince, setWardsByProvince] = useState({});
   const [error, setError] = useState("");
@@ -31,15 +31,20 @@ export function usePlaceNames(profiles, activeProvinceCode) {
     };
   }, []);
 
+  const activeKey = (Array.isArray(activeProvinceCodes) ? activeProvinceCodes : [activeProvinceCodes])
+    .map((code) => String(code || ""))
+    .filter(Boolean)
+    .join("|");
+
   const needed = useMemo(() => {
     const codes = new Set(
-      profiles.map((profile) => String(profile.provinceCode || "")).filter(Boolean),
+      profiles.flatMap((profile) => [profile.provinceCode, profile.permanentProvinceCode])
+        .map((code) => String(code || ""))
+        .filter(Boolean),
     );
-    if (activeProvinceCode) {
-      codes.add(String(activeProvinceCode));
-    }
+    activeKey.split("|").filter(Boolean).forEach((code) => codes.add(code));
     return [...codes];
-  }, [profiles, activeProvinceCode]);
+  }, [profiles, activeKey]);
 
   useEffect(() => {
     const missing = needed.filter((code) => !wardsByProvince[code]);
@@ -87,20 +92,28 @@ export function usePlaceNames(profiles, activeProvinceCode) {
   function placeOf(profile) {
     const provinceCode = String(profile?.provinceCode || "");
     const wardCode = String(profile?.wardCode || "");
+    const permanentProvinceCode = String(profile?.permanentProvinceCode || "");
+    const permanentWardCode = String(profile?.permanentWardCode || "");
     return {
       province: nameOf(provinces, provinceCode),
       ward: nameOf(wardsByProvince[provinceCode] || [], wardCode),
+      permanentProvince: nameOf(provinces, permanentProvinceCode),
+      permanentWard: nameOf(wardsByProvince[permanentProvinceCode] || [], permanentWardCode),
     };
   }
 
   function placeLabel(profile) {
     const place = placeOf(profile);
-    return [place.ward, place.province].filter(Boolean).join(", ");
+    const current = [place.ward, place.province].filter(Boolean).join(", ");
+    const permanent = [place.permanentWard, place.permanentProvince].filter(Boolean).join(", ");
+    return current || permanent;
   }
+
+  const firstActive = activeKey.split("|").find(Boolean) || "";
 
   return {
     provinces,
-    wards: wardsByProvince[String(activeProvinceCode || "")] || [],
+    wards: wardsByProvince[firstActive] || [],
     error,
     loading,
     placeOf,
