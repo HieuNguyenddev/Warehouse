@@ -26,6 +26,8 @@ using RoleManagement.Api.Modules.UserProfiles.Services;
 using RoleManagement.Api.Modules.Users.Entities;
 using RoleManagement.Api.Modules.Users.Repositories;
 using RoleManagement.Api.Modules.Users.Services;
+using RoleManagement.Api.Modules.Warehouses.Repositories;
+using RoleManagement.Api.Modules.Warehouses.Services;
 
 LoadDotEnv(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
 
@@ -125,6 +127,8 @@ builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<IPositionRepository, PositionRepository>();
 builder.Services.AddScoped<IPositionService, PositionService>();
+builder.Services.AddScoped<IWarehouseRepository, WarehouseRepository>();
+builder.Services.AddScoped<IWarehouseService, WarehouseService>();
 builder.Services.AddScoped<IQualificationRepository, QualificationRepository>();
 builder.Services.AddScoped<IQualificationService, QualificationService>();
 builder.Services.AddScoped<IWorkExperienceRepository, WorkExperienceRepository>();
@@ -183,6 +187,8 @@ if (app.Environment.IsDevelopment())
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var startup = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+    const int maxAttempts = 30;
     for (var attempt = 1; ; attempt++)
     {
         try
@@ -190,8 +196,12 @@ using (var scope = app.Services.CreateScope())
             db.Database.Migrate();
             break;
         }
-        catch (NpgsqlException ex) when (attempt < 10 && ex is not PostgresException)
+        catch (Exception ex) when (attempt < maxAttempts && IsDatabaseStarting(ex))
         {
+            startup.LogWarning(
+                "PostgreSQL chưa nhận kết nối. Thử lại {Attempt}/{MaxAttempts}.",
+                attempt,
+                maxAttempts);
             Thread.Sleep(TimeSpan.FromSeconds(2));
         }
     }
@@ -208,6 +218,16 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+static bool IsDatabaseStarting(Exception exception)
+{
+    if (exception is PostgresException postgres)
+    {
+        return postgres.SqlState is "57P01" or "57P02" or "57P03";
+    }
+
+    return exception is NpgsqlException;
+}
 
 static void LoadDotEnv(string path)
 {

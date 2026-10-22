@@ -5,6 +5,7 @@ using RoleManagement.Api.Modules.Roles.Entities;
 using RoleManagement.Api.Modules.WorkExperiences.Entities;
 using RoleManagement.Api.Modules.UserProfiles.Entities;
 using RoleManagement.Api.Modules.Users.Entities;
+using RoleManagement.Api.Modules.Warehouses.Entities;
 
 namespace RoleManagement.Api.Data;
 
@@ -26,6 +27,8 @@ public class AppDbContext : DbContext
     public DbSet<Qualification> Qualifications => Set<Qualification>();
 
     public DbSet<WorkExperience> WorkExperiences => Set<WorkExperience>();
+
+    public DbSet<Warehouse> Warehouses => Set<Warehouse>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -77,6 +80,47 @@ public class AppDbContext : DbContext
                 .HasMaxLength(250);
 
             entity.Property(position => position.CreatedAt)
+                .IsRequired();
+        });
+
+        modelBuilder.Entity<Warehouse>(entity =>
+        {
+            entity.ToTable("Warehouses");
+
+            entity.HasKey(warehouse => warehouse.Id);
+
+            entity.Property(warehouse => warehouse.Name)
+                .HasMaxLength(80)
+                .IsRequired();
+
+            entity.HasIndex(warehouse => warehouse.Name)
+                .IsUnique();
+
+            entity.Property(warehouse => warehouse.Code)
+                .HasMaxLength(20);
+
+            entity.HasIndex(warehouse => warehouse.Code)
+                .IsUnique();
+
+            entity.Property(warehouse => warehouse.Phone)
+                .HasMaxLength(20);
+
+            entity.Property(warehouse => warehouse.Address)
+                .HasMaxLength(200);
+
+            entity.Property(warehouse => warehouse.ProvinceCode)
+                .HasMaxLength(20);
+
+            entity.Property(warehouse => warehouse.WardCode)
+                .HasMaxLength(20);
+
+            entity.Property(warehouse => warehouse.Note)
+                .HasMaxLength(250);
+
+            entity.Property(warehouse => warehouse.IsActive)
+                .HasDefaultValue(true);
+
+            entity.Property(warehouse => warehouse.CreatedAt)
                 .IsRequired();
         });
 

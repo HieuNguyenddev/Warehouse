@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getFiles } from "./api/files";
 import { getPositions } from "./api/positions";
 import { getQualifications } from "./api/qualifications";
+import { getWarehouses } from "./api/warehouses";
 import { getWorkExperiences } from "./api/workExperiences";
 import { getRoles } from "./api/roles";
 import { clearSession, readSession } from "./api/session";
@@ -17,6 +18,7 @@ import QualificationsPage from "./components/QualificationsPage.jsx";
 import RolesPage from "./components/RolesPage.jsx";
 import UserProfilesPage from "./components/UserProfilesPage.jsx";
 import UsersPage from "./components/UsersPage.jsx";
+import WarehousesPage from "./components/WarehousesPage.jsx";
 import WorkExperiencesPage from "./components/WorkExperiencesPage.jsx";
 
 function SidebarToggleIcon({ collapsed }) {
@@ -52,6 +54,7 @@ export default function App() {
   );
   const [theme, setTheme] = useState(readTheme);
   const [roleCount, setRoleCount] = useState(0);
+  const [warehouseCount, setWarehouseCount] = useState(0);
   const [positionCount, setPositionCount] = useState(0);
   const [qualificationCount, setQualificationCount] = useState(0);
   const [experienceCount, setExperienceCount] = useState(0);
@@ -64,6 +67,7 @@ export default function App() {
   const accountRef = useRef(null);
 
   const setRoleTotal = useCallback((count) => setRoleCount(count), []);
+  const setWarehouseTotal = useCallback((count) => setWarehouseCount(count), []);
   const setPositionTotal = useCallback((count) => setPositionCount(count), []);
   const setQualificationTotal = useCallback((count) => setQualificationCount(count), []);
   const setExperienceTotal = useCallback((count) => setExperienceCount(count), []);
@@ -168,6 +172,14 @@ export default function App() {
       .then((data) => {
         if (!cancelled && Array.isArray(data)) {
           setRoleCount(data.length);
+        }
+      })
+      .catch(() => {});
+
+    getWarehouses()
+      .then((data) => {
+        if (!cancelled && Array.isArray(data)) {
+          setWarehouseCount(data.length);
         }
       })
       .catch(() => {});
@@ -362,6 +374,17 @@ export default function App() {
           <nav className="nav">
             <button
               type="button"
+              className={page === "warehouses" ? "nav-item is-active" : "nav-item"}
+              aria-current={page === "warehouses" ? "page" : undefined}
+              title={collapsed ? "Kho hàng" : undefined}
+              onClick={() => openPage("warehouses")}
+            >
+              <Icon name="fa-warehouse" />
+              <span>Kho hàng</span>
+              <em>{warehouseCount}</em>
+            </button>
+            <button
+              type="button"
               className={page === "roles" ? "nav-item is-active" : "nav-item"}
               aria-current={page === "roles" ? "page" : undefined}
               title={collapsed ? "Vai trò" : undefined}
@@ -455,7 +478,9 @@ export default function App() {
           </div>
         </aside>
 
-        {page === "chat" ? (
+        {page === "warehouses" ? (
+          <WarehousesPage onCount={setWarehouseTotal} />
+        ) : page === "chat" ? (
           <ChatPage />
         ) : page === "users" ? (
           <UsersPage onCount={setUserTotal} onOpenRoles={openRoles} />

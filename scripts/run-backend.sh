@@ -51,10 +51,20 @@ if [ -z "$seed_password" ] || [ "$seed_password" = "choose-a-long-admin-password
   exit 1
 fi
 
+if [ -n "$development_connection" ]; then
+  remote_host="$(printf '%s' "$development_connection" | tr ';' '\n' | sed -n 's/^Host=//p' | tail -n 1)"
+  remote_port="$(printf '%s' "$development_connection" | tr ';' '\n' | sed -n 's/^Port=//p' | tail -n 1)"
+  remote_port="${remote_port:-5432}"
+  if [ -n "$remote_host" ] && docker run --rm postgres:16-alpine pg_isready -h "$remote_host" -p "$remote_port" >/dev/null 2>&1; then
+    echo "Máy development dùng PostgreSQL trên ${remote_host}."
+  else
+    echo "PostgreSQL trên ${remote_host:-máy development} chưa nhận kết nối. Bật PostgreSQL local."
+    development_connection=""
+  fi
+fi
+
 if [ -z "$development_connection" ]; then
   docker compose up -d postgres
-else
-  echo "Máy development dùng CONNECTION_STRING_DEVELOPMENT, không bật PostgreSQL local."
 fi
 
 if [ -z "$development_connection" ]; then
@@ -79,6 +89,7 @@ if [ -z "$development_connection" ]; then
 fi
 
 dotnet restore
+export ConnectionStrings__DefaultConnection="$development_connection"
 dotnet user-secrets set "ConnectionStrings:DefaultConnection" "$development_connection"
 echo "API: http://localhost:5252    Swagger: http://localhost:5252/swagger"
 exec dotnet run --launch-profile http
