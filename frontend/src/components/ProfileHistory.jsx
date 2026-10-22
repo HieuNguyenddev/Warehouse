@@ -29,8 +29,8 @@ export default function ProfileHistory({
   const [error, setError] = useState("");
   const quals = qualifications.filter((item) => sameProfile(item, profileId));
   const jobs = experiences.filter((item) => sameProfile(item, profileId));
-  const showQualifications = section !== "experiences";
-  const showExperiences = section !== "qualifications";
+  const showQualifications = section === "both" || section === "qualifications" || section === "qualification";
+  const showExperiences = section === "both" || section === "experiences" || section === "experience";
 
   async function run(action) {
     setSaving(true);
@@ -90,37 +90,71 @@ export default function ProfileHistory({
             ))}
           </ul>
           {adding === "qualification" ? (
-            <div className="record-add">
-              <select value={qualificationForm.kind} onChange={(event) => setQualificationForm({ ...qualificationForm, kind: event.target.value })}>
-                <option value="1">Bằng cấp</option>
-                <option value="2">Chứng chỉ</option>
-              </select>
-              <input
-                required
-                maxLength={150}
-                value={qualificationForm.name}
-                onChange={(event) => setQualificationForm({ ...qualificationForm, name: event.target.value })}
-                placeholder="Tên bằng hoặc chứng chỉ"
-              />
-              <input
-                maxLength={150}
-                value={qualificationForm.issuer}
-                onChange={(event) => setQualificationForm({ ...qualificationForm, issuer: event.target.value })}
-                placeholder="Nơi cấp"
-              />
-              <input type="date" value={qualificationForm.issuedOn} onChange={(event) => setQualificationForm({ ...qualificationForm, issuedOn: event.target.value })} aria-label="Ngày cấp" />
-              <input type="date" value={qualificationForm.expiresOn} onChange={(event) => setQualificationForm({ ...qualificationForm, expiresOn: event.target.value })} aria-label="Ngày hết hạn" />
-              <div className="record-add-actions">
-                <button type="button" className="ghost" disabled={saving || uploading} onClick={() => fileRef.current?.click()}>
-                  <Icon name={uploading ? "fa-spinner fa-spin" : "fa-upload"} />
-                  {uploading ? "Đang tải…" : qualificationForm.documentName || "PDF hoặc ảnh"}
-                </button>
-                {qualificationForm.documentUrl ? (
-                  <button type="button" className="text-btn" disabled={saving || uploading} onClick={() => setQualificationForm({ ...qualificationForm, documentUrl: "", documentName: "" })}>
-                    Gỡ tệp
-                  </button>
-                ) : null}
+            <div className="record-add-card">
+              <div className="record-add-header">
+                <strong><Icon name="fa-certificate" /> Thêm bằng cấp hoặc chứng chỉ</strong>
+                <button type="button" className="icon-btn" onClick={() => setAdding("")} aria-label="Đóng"><Icon name="fa-xmark" /></button>
               </div>
+              <div className="record-grid">
+                <label className="record-field">
+                  <span className="record-label">Phân loại</span>
+                  <select value={qualificationForm.kind} onChange={(event) => setQualificationForm({ ...qualificationForm, kind: event.target.value })}>
+                    <option value="1">Bằng cấp</option>
+                    <option value="2">Chứng chỉ</option>
+                  </select>
+                </label>
+                <label className="record-field is-wide">
+                  <span className="record-label">Tên văn bằng / chứng chỉ <em className="required">*</em></span>
+                  <input
+                    required
+                    maxLength={150}
+                    value={qualificationForm.name}
+                    onChange={(event) => setQualificationForm({ ...qualificationForm, name: event.target.value })}
+                    placeholder="VD: Cử nhân Công nghệ thông tin, Chứng chỉ AWS..."
+                  />
+                </label>
+                <label className="record-field is-wide">
+                  <span className="record-label">Nơi cấp</span>
+                  <input
+                    maxLength={150}
+                    value={qualificationForm.issuer}
+                    onChange={(event) => setQualificationForm({ ...qualificationForm, issuer: event.target.value })}
+                    placeholder="VD: Đại học Bách Khoa, Amazon Web Services..."
+                  />
+                </label>
+                <label className="record-field">
+                  <span className="record-label">Ngày cấp</span>
+                  <input type="date" value={qualificationForm.issuedOn} onChange={(event) => setQualificationForm({ ...qualificationForm, issuedOn: event.target.value })} />
+                </label>
+                <label className="record-field">
+                  <span className="record-label">Ngày hết hạn</span>
+                  <input type="date" value={qualificationForm.expiresOn} onChange={(event) => setQualificationForm({ ...qualificationForm, expiresOn: event.target.value })} />
+                </label>
+              </div>
+
+              <div className="record-file-box">
+                <span className="record-label"><Icon name="fa-paperclip" /> Tài liệu đính kèm (PDF / Ảnh)</span>
+                <div className="record-file-row">
+                  <button type="button" className="ghost btn-upload" disabled={saving || uploading} onClick={() => fileRef.current?.click()}>
+                    <Icon name={uploading ? "fa-spinner fa-spin" : "fa-cloud-arrow-up"} />
+                    {uploading ? "Đang tải tệp…" : qualificationForm.documentName ? "Đổi tệp khác" : "Chọn PDF hoặc ảnh"}
+                  </button>
+                  {qualificationForm.documentName ? (
+                    <span className="record-file-name" title={qualificationForm.documentName}>
+                      <Icon name="fa-file-circle-check" />
+                      {qualificationForm.documentName}
+                    </span>
+                  ) : (
+                    <span className="record-file-hint">Tối đa 8 MB (JPG, PNG, WEBP, PDF)</span>
+                  )}
+                  {qualificationForm.documentUrl ? (
+                    <button type="button" className="text-btn is-danger-text" disabled={saving || uploading} onClick={() => setQualificationForm({ ...qualificationForm, documentUrl: "", documentName: "" })}>
+                      Gỡ tệp
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
               <input
                 ref={fileRef}
                 type="file"
@@ -152,6 +186,7 @@ export default function ProfileHistory({
                   }
                 }}
               />
+
               <div className="record-add-actions">
                 <button type="button" className="ghost" disabled={saving} onClick={() => setAdding("")}>Hủy</button>
                 <button
@@ -169,13 +204,14 @@ export default function ProfileHistory({
                     documentName: qualificationForm.documentName || null,
                   }))}
                 >
-                  {saving ? "Đang lưu…" : "Lưu"}
+                  <Icon name={saving ? "fa-spinner fa-spin" : "fa-check"} />
+                  {saving ? "Đang lưu…" : "Lưu vào hồ sơ"}
                 </button>
               </div>
             </div>
           ) : (
-            <button type="button" className="ghost" disabled={disabled || saving} onClick={() => { setError(""); setAdding("qualification"); }}>
-              <Icon name="fa-plus" />
+            <button type="button" className="ghost btn-add-record" disabled={disabled || saving} onClick={() => { setError(""); setAdding("qualification"); }}>
+              <Icon name="fa-circle-plus" />
               Thêm bằng cấp / chứng chỉ
             </button>
           )}
@@ -208,28 +244,54 @@ export default function ProfileHistory({
             ))}
           </ul>
           {adding === "experience" ? (
-            <div className="record-add">
-              <input
-                maxLength={150}
-                value={experienceForm.company}
-                onChange={(event) => setExperienceForm({ ...experienceForm, company: event.target.value })}
-                placeholder="Nơi làm việc"
-              />
-              <input
-                maxLength={120}
-                value={experienceForm.jobTitle}
-                onChange={(event) => setExperienceForm({ ...experienceForm, jobTitle: event.target.value })}
-                placeholder="Chức danh"
-              />
-              <input type="date" value={experienceForm.startedOn} onChange={(event) => setExperienceForm({ ...experienceForm, startedOn: event.target.value })} aria-label="Ngày bắt đầu" />
-              <label className="check-row">
+            <div className="record-add-card">
+              <div className="record-add-header">
+                <strong><Icon name="fa-briefcase" /> Thêm kinh nghiệm làm việc</strong>
+                <button type="button" className="icon-btn" onClick={() => setAdding("")} aria-label="Đóng"><Icon name="fa-xmark" /></button>
+              </div>
+              <div className="record-grid">
+                <label className="record-field is-wide">
+                  <span className="record-label">Nơi làm việc / Công ty <em className="required">*</em></span>
+                  <input
+                    maxLength={150}
+                    value={experienceForm.company}
+                    onChange={(event) => setExperienceForm({ ...experienceForm, company: event.target.value })}
+                    placeholder="VD: Tập đoàn ABC, Công ty TNHH XYZ..."
+                  />
+                </label>
+                <label className="record-field is-wide">
+                  <span className="record-label">Chức danh / Vị trí <em className="required">*</em></span>
+                  <input
+                    maxLength={120}
+                    value={experienceForm.jobTitle}
+                    onChange={(event) => setExperienceForm({ ...experienceForm, jobTitle: event.target.value })}
+                    placeholder="VD: Kỹ sư phần mềm, Nhân viên kho vận..."
+                  />
+                </label>
+                <label className="record-field">
+                  <span className="record-label">Ngày bắt đầu <em className="required">*</em></span>
+                  <input type="date" value={experienceForm.startedOn} onChange={(event) => setExperienceForm({ ...experienceForm, startedOn: event.target.value })} />
+                </label>
+                <label className="record-field">
+                  <span className="record-label">Ngày kết thúc</span>
+                  <input
+                    type="date"
+                    disabled={experienceForm.isCurrent}
+                    value={experienceForm.endedOn}
+                    onChange={(event) => setExperienceForm({ ...experienceForm, endedOn: event.target.value })}
+                  />
+                </label>
+              </div>
+
+              <label className="check-row record-checkbox">
                 <input
                   type="checkbox"
                   checked={experienceForm.isCurrent}
                   onChange={(event) => setExperienceForm({ ...experienceForm, isCurrent: event.target.checked, endedOn: event.target.checked ? "" : experienceForm.endedOn })}
                 />
-                <span>Đang làm việc tại đây</span>
+                <span>Đang làm việc tại đây (Hiện tại)</span>
               </label>
+
               <div className="record-add-actions">
                 <button type="button" className="ghost" disabled={saving} onClick={() => setAdding("")}>Hủy</button>
                 <button
@@ -245,13 +307,14 @@ export default function ProfileHistory({
                     isCurrent: experienceForm.isCurrent,
                   }))}
                 >
-                  {saving ? "Đang lưu…" : "Lưu"}
+                  <Icon name={saving ? "fa-spinner fa-spin" : "fa-check"} />
+                  {saving ? "Đang lưu…" : "Lưu vào hồ sơ"}
                 </button>
               </div>
             </div>
           ) : (
-            <button type="button" className="ghost" disabled={disabled || saving} onClick={() => { setError(""); setAdding("experience"); }}>
-              <Icon name="fa-plus" />
+            <button type="button" className="ghost btn-add-record" disabled={disabled || saving} onClick={() => { setError(""); setAdding("experience"); }}>
+              <Icon name="fa-circle-plus" />
               Thêm kinh nghiệm
             </button>
           )}
