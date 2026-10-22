@@ -56,10 +56,15 @@ jobs:
               echo "Đã ghi CONNECTION_STRING với Host=postgres cho container API."
             fi
             bash "$ROOT/scripts/ensure-garage.sh"
+            if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet nginx; then
+              echo "Phát hiện Nginx trên host đang chạy. Dừng và tắt systemd Nginx để nhường cổng 80/443 cho Docker Compose Nginx..."
+              sudo systemctl disable --now nginx || true
+            fi
             mkdir -p certbot/www
+            sudo mkdir -p /etc/letsencrypt
             docker compose up -d --build
             docker compose up -d --force-recreate --no-deps nginx
-            certbot certonly --webroot --non-interactive --keep-until-expiring --expand \
+            sudo certbot certonly --webroot --non-interactive --keep-until-expiring --expand \
               --cert-name api.minhhieudev.id.vn \
               -w "$ROOT/backend/certbot/www" \
               -d api.minhhieudev.id.vn \
