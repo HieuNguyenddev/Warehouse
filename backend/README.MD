@@ -7,7 +7,7 @@ API ASP.NET Core .NET 10 trong thư mục này. Dữ liệu nằm ở PostgreSQL
 | Cách chạy | .NET SDK + PostgreSQL | Docker Compose |
 | API | `http://localhost:5252` | `https://api.minhhieudev.id.vn` |
 | PostgreSQL | `localhost:5432` | trong Docker, cổng `5432` trên host |
-| Ollama | `http://127.0.0.1:11434` | container `ollama`, mô hình `qwen2.5:0.5b` |
+| Ollama | `http://127.0.0.1:11434` | container `ollama`, mô hình `gemma3:270m` |
 | Swagger | `http://localhost:5252/swagger` | `https://api.minhhieudev.id.vn/swagger` |
 
 User PostgreSQL là `postgres`. Mật khẩu database, khóa ký JWT và mật khẩu tài khoản admin không nằm trong git. Máy thật và VPS cùng đặt các giá trị đó trong file `backend/.env`. `dotnet run` đọc file này khi đứng trong thư mục `backend`. Docker Compose đưa các biến trong file vào container.
@@ -130,7 +130,7 @@ Máy đích: 1 CPU, 2 GB RAM, 25 GB đĩa. API không mở cổng `8080` ra inte
 
 Thư mục trên VPS: `/root/Documents/Warehouse`. Compose nằm ở `/root/Documents/Warehouse/backend`.
 
-Trần RAM lúc chạy: API 192 MB, PostgreSQL 96 MB, Garage 64 MB, Ollama 640 MB, frontend 24 MB, Nginx 16 MB. Cộng lại khoảng 1 GB, phần còn lại của 2 GB dành cho Ubuntu. Mỗi trần đi kèm `memswap_limit` bằng đúng trần đó, nên container không chiếm swap. Swap 1 GB của máy chỉ dùng khi build image. `qwen2.5:0.5b` lúc trả lời chiếm khoảng 452 MB và được nhả sau 60 giây. Ngữ cảnh 1024 token, một luồng, một lượt. File mô hình 397 MB. Log mỗi container tối đa hai file, mỗi file 10 MB. Container tự chạy lại sau reboot. `ollama-pull` chạy một lần rồi thoát.
+Trần RAM lúc chạy: API 192 MB, PostgreSQL 96 MB, Garage 64 MB, Ollama 448 MB, frontend 24 MB, Nginx 16 MB. Cộng lại khoảng 840 MB, phần còn lại của 2 GB dành cho Ubuntu. Mỗi trần đi kèm `memswap_limit` bằng đúng trần đó, nên container không chiếm swap. Swap 1 GB của máy chỉ dùng khi build image. `gemma3:270m` là bản 270 triệu tham số, file 291 MB, lúc trả lời chiếm khoảng 318 MB và được nhả sau 60 giây. Ngữ cảnh 1024 token, một luồng, một lượt. Log mỗi container tối đa hai file, mỗi file 10 MB. Container tự chạy lại sau reboot. `ollama-pull` chạy một lần rồi thoát.
 
 ### 2.1. Cài Docker
 
@@ -245,7 +245,7 @@ chmod 600 .env
 | `CONNECTION_STRING_DEVELOPMENT` | Chỉ khi `dotnet run` trên máy development. Container trên VPS không đọc dòng này |
 | `TURNSTILE_SECRET_KEY` | Secret Cloudflare. Để trống thì API bỏ qua bước kiểm tra |
 | `OLLAMA_URL` | Để trống. Compose dùng `http://ollama:11434` |
-| `OLLAMA_MODEL` | Để trống. Compose dùng `qwen2.5:0.5b` |
+| `OLLAMA_MODEL` | Để trống. Compose dùng `gemma3:270m` |
 
 Site Key và Secret Key lấy ở [dash.cloudflare.com](https://dash.cloudflare.com/), mục **Turnstile**, **Add Widget**. Hostname là `admin.minhhieudev.id.vn`, mode **Managed**. Site Key ghi vào `frontend/.env.production`. Secret Key ghi vào `TURNSTILE_SECRET_KEY`. Cách tạo file frontend nằm ở `frontend/README.MD`.
 
@@ -285,10 +285,10 @@ sudo docker compose exec -T api printenv Ollama__BaseUrl Ollama__Model
 sudo docker builder prune -f
 ```
 
-- Lần đầu kéo image và build API, frontend. `ollama-pull` tải `qwen2.5:0.5b` rồi thoát mã 0. API chỉ chạy sau PostgreSQL, Garage và bước kéo mô hình.
+- Lần đầu kéo image và build API, frontend. `ollama-pull` tải `gemma3:270m` rồi thoát mã 0. API chỉ chạy sau PostgreSQL, Garage và bước kéo mô hình.
 - `docker compose ps` phải thấy `api`, `frontend`, `nginx`, `ollama` là `running`, `postgres` và `garage` là `healthy`, `ollama-pull` là `exited`.
-- `ollama list` phải có `qwen2.5:0.5b`.
-- `printenv` phải in `http://ollama:11434` và `qwen2.5:0.5b`.
+- `ollama list` phải có `gemma3:270m`.
+- `printenv` phải in `http://ollama:11434` và `gemma3:270m`.
 - `docker builder prune -f` xóa cache build để đĩa 25 GB không đầy sau vài lần deploy.
 
 Đăng nhập qua Nginx khi DNS và chứng chỉ đã có. Thay `MAT_KHAU_ADMIN` bằng `SEED_PASSWORD`, hoặc bằng mật khẩu đã đổi trong giao diện nếu tài khoản tạo từ trước.
@@ -302,7 +302,7 @@ curl -s https://api.minhhieudev.id.vn/api/auth/login \
 - JSON có `token` nghĩa là API đang phục vụ.
 - `GET /api/roles` không kèm `Authorization: Bearer <token>` trả **401**.
 - Chưa có chứng chỉ thì gọi `http://IP-VPS` với header `Host: api.minhhieudev.id.vn`.
-- Mở `https://admin.minhhieudev.id.vn`, đăng nhập, vào **Trợ lý**. Ô mô hình là `qwen2.5:0.5b`.
+- Mở `https://admin.minhhieudev.id.vn`, đăng nhập, vào **Trợ lý**. Ô mô hình là `gemma3:270m`.
 
 Xem log khi một service không lên:
 
@@ -314,7 +314,7 @@ sudo docker compose logs ollama-pull --tail 40
 sudo docker stats --no-stream
 ```
 
-- Ollama lúc trả lời nằm quanh 452 MB và dưới trần 640 MB. `free -h` lúc đó vẫn còn RAM trống. Sau 60 giây không hỏi, mô hình được nhả.
+- Ollama lúc trả lời nằm quanh 318 MB và dưới trần 448 MB. `free -h` lúc đó vẫn còn RAM trống. Sau 60 giây không hỏi, mô hình được nhả.
 
 Đổi mật khẩu database: sửa trong PostgreSQL rồi sửa `.env`. Chỉ sửa file thì API không vào được volume cũ.
 
@@ -387,9 +387,9 @@ Trang **Trợ lý** gửi câu hỏi tới API. API gọi Ollama tại `POST /ap
 | Biến | Ý nghĩa |
 | --- | --- |
 | `OLLAMA_URL` | Gốc của Ollama, không có `/api` ở cuối. Máy development để trống hoặc ghi `http://127.0.0.1:11434`. Compose trên VPS để trống để dùng `http://ollama:11434` |
-| `OLLAMA_MODEL` | Tên trong `ollama list`. Để trống thì API chọn `qwen2.5:0.5b` nếu máy đã pull mô hình đó. VPS 1 CPU / 2 GB RAM / 25 GB đĩa dùng đúng tên này |
+| `OLLAMA_MODEL` | Tên trong `ollama list`. Để trống thì API chọn `gemma3:270m` nếu máy đã pull mô hình đó. VPS 1 CPU / 2 GB RAM / 25 GB đĩa dùng đúng tên này |
 
-Để trống `OLLAMA_MODEL`, API chọn mô hình chat đã có theo thứ tự `qwen2.5:0.5b`, `qwen3:0.6b`, `qwen3:1.7b`, `qwen3:4b`, `qwen3:8b`. Bỏ qua mô hình embedding.
+Để trống `OLLAMA_MODEL`, API chọn mô hình chat đã có theo thứ tự `gemma3:270m`, `qwen2.5:0.5b`, `qwen3:0.6b`, `qwen3:1.7b`, `qwen3:4b`, `qwen3:8b`. Bỏ qua mô hình embedding.
 
 ### 4.1. Máy development
 
@@ -398,13 +398,13 @@ Ollama nghe cổng `11434`. macOS:
 ```bash
 brew install ollama
 brew services start ollama
-ollama pull qwen2.5:0.5b
+ollama pull gemma3:270m
 ollama list
 curl -s http://127.0.0.1:11434/api/tags
 ```
 
-- `ollama list` đã có `qwen2.5:0.5b` thì không cần pull lại.
-- Muốn cố định mô hình, thêm `OLLAMA_URL=http://127.0.0.1:11434` và `OLLAMA_MODEL=qwen2.5:0.5b` vào `backend/.env`, rồi khởi động lại API.
+- `ollama list` đã có `gemma3:270m` thì không cần pull lại.
+- Muốn cố định mô hình, thêm `OLLAMA_URL=http://127.0.0.1:11434` và `OLLAMA_MODEL=gemma3:270m` vào `backend/.env`, rồi khởi động lại API.
 
 ```bash
 ./scripts/run-backend.sh
@@ -414,7 +414,7 @@ Frontend: `cd frontend && npm install && npm run dev`. Đăng nhập, mở **Tr�
 
 ### 4.2. VPS
 
-Cài máy Ubuntu 24.04 theo mục 2. Compose tự kéo `qwen2.5:0.5b` và giới hạn Ollama ở 640 MB. Trên VPS để trống `OLLAMA_URL` và `OLLAMA_MODEL`.
+Cài máy Ubuntu 24.04 theo mục 2. Compose tự kéo `gemma3:270m` và giới hạn Ollama ở 448 MB. Trên VPS để trống `OLLAMA_URL` và `OLLAMA_MODEL`.
 
 - **Không kết nối được Ollama**: `docker compose ps` không thấy `ollama` đang chạy, hoặc `.env` ghi `127.0.0.1`.
 - **Ollama chưa có mô hình chat**: `sudo docker compose up -d --build` để `ollama-pull` chạy lại. Container đó phải thoát mã 0.

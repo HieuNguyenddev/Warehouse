@@ -32,7 +32,7 @@ services:
       AWS_RESPONSE_CHECKSUM_VALIDATION: WHEN_REQUIRED
       Turnstile__SecretKey: ${TURNSTILE_SECRET_KEY:-}
       Ollama__BaseUrl: ${OLLAMA_URL:-http://ollama:11434}
-      Ollama__Model: ${OLLAMA_MODEL:-qwen2.5:0.5b}
+      Ollama__Model: ${OLLAMA_MODEL:-gemma3:270m}
       DOTNET_GCHeapHardLimit: "134217728"
       DOTNET_GCConserveMemory: "9"
       DOTNET_gcServer: "0"
@@ -134,8 +134,8 @@ services:
   ollama:
     <<: *service
     image: ollama/ollama:0.32.15
-    mem_limit: 640m
-    memswap_limit: 640m
+    mem_limit: 448m
+    memswap_limit: 448m
     oom_score_adj: 300
     environment:
       OLLAMA_HOST: 0.0.0.0:11434
@@ -171,7 +171,7 @@ services:
         condition: service_healthy
     environment:
       OLLAMA_HOST: http://ollama:11434
-    entrypoint: ["/bin/ollama", "pull", "qwen2.5:0.5b"]
+    entrypoint: ["/bin/ollama", "pull", "gemma3:270m"]
     restart: "no"
 
 volumes:

@@ -14,7 +14,7 @@ public class OllamaClient
         + "Không bịa số liệu nhân sự. Không xin và không nhắc lại mật khẩu, khóa API, mã JWT hay chuỗi kết nối database.";
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
-    private static readonly string[] PreferredModels = ["qwen2.5:0.5b", "qwen3:0.6b", "qwen3:1.7b", "qwen3:4b", "qwen3:8b"];
+    private static readonly string[] PreferredModels = ["gemma3:270m", "qwen2.5:0.5b", "qwen3:0.6b", "qwen3:1.7b", "qwen3:4b", "qwen3:8b"];
 
     private readonly IHttpClientFactory _http;
     private readonly OllamaOptions _options;
@@ -54,7 +54,7 @@ public class OllamaClient
         if (models.Count == 0)
         {
             return new ChatCatalog("", [], string.IsNullOrEmpty(notice)
-                ? "Ollama chưa có mô hình chat. Chạy ollama pull qwen2.5:0.5b, rồi tải lại trang Trợ lý."
+                ? "Ollama chưa có mô hình chat. Chạy ollama pull gemma3:270m, rồi tải lại trang Trợ lý."
                 : notice);
         }
 
