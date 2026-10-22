@@ -61,7 +61,14 @@ jobs:
               sudo systemctl disable --now nginx || true
             fi
             mkdir -p certbot/www
-            sudo mkdir -p /etc/letsencrypt
+            sudo mkdir -p /etc/letsencrypt/live/api.minhhieudev.id.vn
+            if [ ! -f /etc/letsencrypt/live/api.minhhieudev.id.vn/fullchain.pem ]; then
+              echo "Tạo chứng chỉ tạm thời để Nginx container có thể khởi động..."
+              sudo openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
+                -keyout /etc/letsencrypt/live/api.minhhieudev.id.vn/privkey.pem \
+                -out /etc/letsencrypt/live/api.minhhieudev.id.vn/fullchain.pem \
+                -subj "/CN=api.minhhieudev.id.vn"
+            fi
             docker compose up -d --build
             docker compose up -d --force-recreate --no-deps nginx
             sudo certbot certonly --webroot --non-interactive --keep-until-expiring --expand \
