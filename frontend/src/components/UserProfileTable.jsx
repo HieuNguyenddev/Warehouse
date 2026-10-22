@@ -45,6 +45,8 @@ export default function UserProfileTable({
   onCreate,
   onClearQuery,
   placeLabel = () => "",
+  qualifications = [],
+  experiences = [],
   placeOf = () => ({ province: "", ward: "" }),
 }) {
   const [selected, setSelected] = useState(null);
@@ -205,6 +207,16 @@ export default function UserProfileTable({
             { label: "Tỉnh / thành phố", value: show(placeOf(selected).province || selected.provinceCode) },
             { label: "Xã / phường", value: show(placeOf(selected).ward || selected.wardCode) },
             { label: "Trình độ", value: show(selected.educationLevel) },
+            {
+              label: "Bằng cấp & chứng chỉ",
+              value: qualifications.filter((item) => Number(item.userProfileId) === Number(selected.id)).map((item) => item.name).join(", ") || "Chưa có",
+              wide: true,
+            },
+            {
+              label: "Kinh nghiệm làm việc",
+              value: experiences.filter((item) => Number(item.userProfileId) === Number(selected.id)).map((item) => `${item.jobTitle} · ${item.company}`).join("; ") || "Chưa có",
+              wide: true,
+            },
             { label: "Người liên hệ", value: show(selected.emergencyContactName) },
             { label: "SĐT khẩn cấp", value: show(selected.emergencyContactPhone) },
             { label: "Ảnh đại diện", value: show(selected.avatarUrl), wide: true },

@@ -174,11 +174,12 @@ export default function UsersPage({ onCount, onOpenRoles }) {
     try {
       if (editingId == null) {
         await createUser({ ...payload, password: form.password.trim() });
-        setNotice("Đã tạo người dùng mới.");
+        setNotice("Đã tạo người dùng mới. Hồ sơ cá nhân đã được tạo theo tài khoản.");
       } else {
         await updateUser(editingId, payload);
         setNotice("Đã cập nhật người dùng.");
       }
+      window.dispatchEvent(new Event("accounts:changed"));
       setFormOpen(false);
       resetForm();
       await loadUsers();

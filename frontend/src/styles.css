@@ -1362,6 +1362,74 @@ td.ip {
   resize: vertical;
 }
 
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0.15rem 0 0.85rem;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.check-row input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+}
+
+.profile-history {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.profile-history-block {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.profile-history-block h4 {
+  margin: 0;
+}
+
+.record-list {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.record-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+}
+
+.record-list strong,
+.record-list span {
+  display: block;
+}
+
+.record-list span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.record-add {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.record-add-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
 .count {
   justify-self: end;
   color: var(--muted);

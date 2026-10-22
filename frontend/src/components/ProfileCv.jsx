@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { uploadAvatar } from "../api/userProfiles";
 import AvatarPhoto from "./AvatarPhoto.jsx";
 import Icon from "./Icon.jsx";
+import ProfileHistory from "./ProfileHistory.jsx";
 import ProfileJobFields from "./ProfileJobFields.jsx";
 import { employeePrefix, genderOptions, maritalOptions, optionLabel, previewEmployeeCode, profileToForm } from "./profileLabels.js";
 
@@ -35,6 +36,8 @@ const DEFAULT_LAYOUT = [
   { id: "contact", title: "Liên hệ", fields: ["phoneNumber", "email", "address", "permanentAddress", "provinceCode", "wardCode"] },
   { id: "person", title: "Nhân thân", fields: ["dateOfBirth", "gender", "placeOfBirth", "nationality", "ethnicity", "religion", "maritalStatus", "educationLevel"] },
   { id: "papers", title: "Giấy tờ", fields: ["identityNumber", "identityIssuedDate", "identityIssuedPlace"] },
+  { id: "qualifications", title: "Bằng cấp & chứng chỉ", fields: [] },
+  { id: "experience", title: "Kinh nghiệm làm việc", fields: [] },
   { id: "extra", title: "Khẩn cấp", fields: ["emergencyContactName", "emergencyContactPhone", "note"] },
 ];
 
@@ -159,6 +162,9 @@ export default function ProfileCv({
   blocked,
   positions = [],
   onPositions,
+  qualifications = [],
+  experiences = [],
+  onRecordsChanged,
 }) {
   const [activeId, setActiveId] = useState(profileId);
   const [draft, setDraft] = useState(null);
@@ -513,6 +519,16 @@ export default function ProfileCv({
                         disabled={saving || uploading}
                         onPosition={(value) => patch({ positionId: value })}
                         onPositions={onPositions}
+                      />
+                    ) : null}
+                    {block.id === "qualifications" || block.id === "experience" ? (
+                      <ProfileHistory
+                        profileId={draft.id}
+                        section={block.id}
+                        qualifications={qualifications}
+                        experiences={experiences}
+                        disabled={saving || uploading}
+                        onChanged={onRecordsChanged}
                       />
                     ) : null}
                     {block.fields.map((key) => {

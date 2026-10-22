@@ -24,6 +24,56 @@ public class UserProfileRepository : IUserProfileRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task EnsureMissingProfilesAsync(CancellationToken cancellationToken = default)
+    {
+        var missing = await _context.Users
+            .Include(user => user.Position)
+            .Where(user => user.DeletedAt == null)
+            .Where(user => !_context.UserProfiles.Any(profile => profile.UserId == user.Id))
+            .OrderBy(user => user.Id)
+            .ToListAsync(cancellationToken);
+
+        if (missing.Count == 0)
+        {
+            return;
+        }
+
+        var codes = await _context.UserProfiles
+            .Select(profile => profile.EmployeeCode)
+            .ToListAsync(cancellationToken);
+
+        foreach (var user in missing)
+        {
+            var prefix = EmployeeCodes.Prefix(user.Position?.Code) ?? "NS";
+            var next = 1;
+            foreach (var code in codes)
+            {
+                if (EmployeeCodes.TryRead(prefix, code, out var number))
+                {
+                    next = Math.Max(next, number + 1);
+                }
+            }
+
+            if (next > 999)
+            {
+                continue;
+            }
+
+            var employeeCode = EmployeeCodes.Format(prefix, next);
+            codes.Add(employeeCode);
+            var name = user.FullName.Trim();
+            await _context.UserProfiles.AddAsync(new UserProfile
+            {
+                UserId = user.Id,
+                FullName = string.IsNullOrEmpty(name) ? user.Username : name,
+                EmployeeCode = employeeCode,
+                CreatedAt = DateTime.UtcNow,
+            }, cancellationToken);
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task AlignEmployeeCodesAsync(CancellationToken cancellationToken = default)
     {
         var profiles = await _context.UserProfiles

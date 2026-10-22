@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getPositions } from "../api/positions";
+import { getQualifications } from "../api/qualifications";
 import { getUsers } from "../api/users";
+import { getWorkExperiences } from "../api/workExperiences";
 import { createUserProfile, deleteUserProfile, getUserProfiles, updateUserProfile } from "../api/userProfiles";
 import Icon from "./Icon.jsx";
 import Pager, { slicePage } from "./Pager.jsx";
@@ -32,6 +34,8 @@ export default function UserProfilesPage({ onCount }) {
   const [profiles, setProfiles] = useState([]);
   const [positions, setPositions] = useState([]);
   const [users, setUsers] = useState([]);
+  const [qualifications, setQualifications] = useState([]);
+  const [experiences, setExperiences] = useState([]);
   const [form, setForm] = useState(emptyProfileForm);
   const [editingId, setEditingId] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -70,7 +74,13 @@ export default function UserProfilesPage({ onCount }) {
     setLoading(true);
     setError("");
     try {
-      const [profileData, userData, positionData] = await Promise.all([getUserProfiles(), getUsers(), getPositions()]);
+      const [profileData, userData, positionData, qualificationData, experienceData] = await Promise.all([
+        getUserProfiles(),
+        getUsers(),
+        getPositions(),
+        getQualifications(),
+        getWorkExperiences(),
+      ]);
       const list = Array.isArray(profileData) ? profileData : [];
       setProfiles((current) => list.map((item) => {
         const previous = current.find((profile) => profile.id === item.id);
@@ -85,6 +95,8 @@ export default function UserProfilesPage({ onCount }) {
       }));
       setUsers(Array.isArray(userData) ? userData : []);
       setPositions(Array.isArray(positionData) ? positionData : []);
+      setQualifications(Array.isArray(qualificationData) ? qualificationData : []);
+      setExperiences(Array.isArray(experienceData) ? experienceData : []);
       onCount(list.length);
     } catch (err) {
       setError(err.message || "Không tải được danh sách hồ sơ.");
@@ -197,16 +209,22 @@ export default function UserProfilesPage({ onCount }) {
 
   const paged = slicePage(filtered, page);
   const withIdentity = profiles.filter((profile) => profile.identityNumber).length;
-  const profileUserIds = new Set(profiles.map((profile) => profile.userId));
+  const profileUserIds = new Set(profiles.map((profile) => Number(profile.userId)));
   const selectableUsers = users.filter((user) => {
-    if (editingId != null && String(user.id) === form.userId) {
+    if (editingId != null && String(user.id) === String(form.userId)) {
       return true;
     }
     if (user.deletedAt) {
       return false;
     }
-    return !profileUserIds.has(user.id);
+    return !profileUserIds.has(Number(user.id));
   });
+
+  const reloadRecords = useCallback(async () => {
+    const [qualificationData, experienceData] = await Promise.all([getQualifications(), getWorkExperiences()]);
+    setQualifications(Array.isArray(qualificationData) ? qualificationData : []);
+    setExperiences(Array.isArray(experienceData) ? experienceData : []);
+  }, []);
 
   function resetForm() {
     setForm(emptyProfileForm);
@@ -423,6 +441,8 @@ export default function UserProfilesPage({ onCount }) {
             onClearQuery={() => setQuery("")}
             placeLabel={places.placeLabel}
             placeOf={places.placeOf}
+            qualifications={qualifications}
+            experiences={experiences}
           />
         ) : null}
         {view === "board" ? (
@@ -474,6 +494,9 @@ export default function UserProfilesPage({ onCount }) {
           blocked={formOpen || Boolean(pendingDelete)}
           positions={positions}
           onPositions={setPositions}
+          qualifications={qualifications}
+          experiences={experiences}
+          onRecordsChanged={reloadRecords}
         />
       ) : null}
 
@@ -502,6 +525,9 @@ export default function UserProfilesPage({ onCount }) {
               positions={positions}
               profiles={alignedProfiles}
               onPositions={setPositions}
+              qualifications={qualifications}
+              experiences={experiences}
+              onRecordsChanged={reloadRecords}
             />
           </div>
         </div>

@@ -17,12 +17,17 @@ public class FileStore
 
     public Task<WarehouseFile> SaveAsync(IFormFile file, CancellationToken cancellationToken)
     {
-        return SaveCoreAsync(file, imagesOnly: false, MaxBytes, cancellationToken);
+        return SaveCoreAsync(file, imagesOnly: false, documentsOnly: false, MaxBytes, cancellationToken);
+    }
+
+    public Task<WarehouseFile> SaveDocumentAsync(IFormFile file, CancellationToken cancellationToken)
+    {
+        return SaveCoreAsync(file, imagesOnly: false, documentsOnly: true, MaxBytes, cancellationToken);
     }
 
     public Task<WarehouseFile> SaveImageAsync(IFormFile file, int maxBytes, CancellationToken cancellationToken)
     {
-        return SaveCoreAsync(file, imagesOnly: true, maxBytes, cancellationToken);
+        return SaveCoreAsync(file, imagesOnly: true, documentsOnly: false, maxBytes, cancellationToken);
     }
 
     public async Task<IReadOnlyList<WarehouseFile>> ListAsync(CancellationToken cancellationToken)
@@ -60,6 +65,7 @@ public class FileStore
     private async Task<WarehouseFile> SaveCoreAsync(
         IFormFile file,
         bool imagesOnly,
+        bool documentsOnly,
         int maxBytes,
         CancellationToken cancellationToken)
     {
@@ -73,11 +79,16 @@ public class FileStore
         await input.CopyToAsync(buffer, cancellationToken);
         var bytes = buffer.ToArray();
         var extension = FileSignatures.DetectExtension(bytes, Path.GetExtension(file.FileName), imagesOnly);
-        if (extension == null || !FileSignatures.ContentTypes.TryGetValue(extension, out var contentType))
+        var allowedDocument = extension is ".jpg" or ".png" or ".webp" or ".gif" or ".pdf";
+        if (extension == null
+            || !FileSignatures.ContentTypes.TryGetValue(extension, out var contentType)
+            || (documentsOnly && !allowedDocument))
         {
-            throw new InvalidOperationException(imagesOnly
-                ? "Chỉ nhận ảnh JPG, PNG, WEBP hoặc GIF."
-                : "Chỉ nhận ảnh JPG, PNG, WEBP, GIF hoặc tệp PDF, TXT, DOCX, XLSX.");
+            throw new InvalidOperationException(documentsOnly
+                ? "Chỉ nhận ảnh JPG, PNG, WEBP, GIF hoặc tệp PDF."
+                : imagesOnly
+                    ? "Chỉ nhận ảnh JPG, PNG, WEBP hoặc GIF."
+                    : "Chỉ nhận ảnh JPG, PNG, WEBP, GIF hoặc tệp PDF, TXT, DOCX, XLSX.");
         }
 
         var name = $"{Guid.NewGuid():N}{extension}";

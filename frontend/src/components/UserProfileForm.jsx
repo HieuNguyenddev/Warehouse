@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { uploadAvatar } from "../api/userProfiles";
 import AvatarPhoto from "./AvatarPhoto.jsx";
 import Icon from "./Icon.jsx";
+import ProfileHistory from "./ProfileHistory.jsx";
 import ProfileJobFields from "./ProfileJobFields.jsx";
 import { employeePrefix, genderOptions, maritalOptions } from "./profileLabels.js";
 
@@ -34,6 +35,9 @@ export default function UserProfileForm({
   positions = [],
   profiles = [],
   onPositions,
+  qualifications = [],
+  experiences = [],
+  onRecordsChanged,
 }) {
   const nameRef = useRef(null);
   const fileRef = useRef(null);
@@ -296,6 +300,21 @@ export default function UserProfileForm({
           <textarea maxLength={500} rows={3} value={form.note} onChange={(event) => set({ note: event.target.value })} />
         </Field>
       </section>
+
+      {isEdit ? (
+        <section className="form-section">
+          <h4>Bằng cấp và kinh nghiệm</h4>
+          <ProfileHistory
+            profileId={editingId}
+            qualifications={qualifications}
+            experiences={experiences}
+            disabled={saving || uploading}
+            onChanged={onRecordsChanged}
+          />
+        </section>
+      ) : (
+        <p className="muted">Tài khoản mới được tạo hồ sơ tự động. Bằng cấp và kinh nghiệm thêm được sau khi hồ sơ đã có.</p>
+      )}
 
       <div className="actions">
         <button type="button" className="ghost" onClick={onCancel} disabled={saving}>

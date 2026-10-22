@@ -32,6 +32,7 @@ public class UserProfileService : IUserProfileService
 
     public async Task<IReadOnlyList<UserProfileResponse>> ListAsync(CancellationToken cancellationToken = default)
     {
+        await _profiles.EnsureMissingProfilesAsync(cancellationToken);
         await _profiles.AlignEmployeeCodesAsync(cancellationToken);
         var profiles = await _profiles.ListAsync(cancellationToken);
         return profiles.Select(UserProfileResponse.From).ToList();

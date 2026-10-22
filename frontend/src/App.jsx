@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getFiles } from "./api/files";
 import { getPositions } from "./api/positions";
+import { getQualifications } from "./api/qualifications";
+import { getWorkExperiences } from "./api/workExperiences";
 import { getRoles } from "./api/roles";
 import { clearSession, readSession } from "./api/session";
 import { getUserProfiles } from "./api/userProfiles";
@@ -10,9 +12,11 @@ import FilesPage from "./components/FilesPage.jsx";
 import Icon from "./components/Icon.jsx";
 import LoginPage from "./components/LoginPage.jsx";
 import PositionsPage from "./components/PositionsPage.jsx";
+import QualificationsPage from "./components/QualificationsPage.jsx";
 import RolesPage from "./components/RolesPage.jsx";
 import UserProfilesPage from "./components/UserProfilesPage.jsx";
 import UsersPage from "./components/UsersPage.jsx";
+import WorkExperiencesPage from "./components/WorkExperiencesPage.jsx";
 
 function SidebarToggleIcon({ collapsed }) {
   return (
@@ -48,6 +52,8 @@ export default function App() {
   const [theme, setTheme] = useState(readTheme);
   const [roleCount, setRoleCount] = useState(0);
   const [positionCount, setPositionCount] = useState(0);
+  const [qualificationCount, setQualificationCount] = useState(0);
+  const [experienceCount, setExperienceCount] = useState(0);
   const [userCount, setUserCount] = useState(0);
   const [profileCount, setProfileCount] = useState(0);
   const [fileCount, setFileCount] = useState(0);
@@ -58,6 +64,8 @@ export default function App() {
 
   const setRoleTotal = useCallback((count) => setRoleCount(count), []);
   const setPositionTotal = useCallback((count) => setPositionCount(count), []);
+  const setQualificationTotal = useCallback((count) => setQualificationCount(count), []);
+  const setExperienceTotal = useCallback((count) => setExperienceCount(count), []);
   const setUserTotal = useCallback((count) => setUserCount(count), []);
   const setProfileTotal = useCallback((count) => setProfileCount(count), []);
   const setFileTotal = useCallback((count) => setFileCount(count), []);
@@ -127,11 +135,23 @@ export default function App() {
       }
     }
 
+    function onAccounts() {
+      getUserProfiles()
+        .then((data) => {
+          if (Array.isArray(data)) {
+            setProfileCount(data.length);
+          }
+        })
+        .catch(() => {});
+    }
+
     window.addEventListener("auth:logout", onLogout);
     window.addEventListener("profile:avatar", onAvatar);
+    window.addEventListener("accounts:changed", onAccounts);
     return () => {
       window.removeEventListener("auth:logout", onLogout);
       window.removeEventListener("profile:avatar", onAvatar);
+      window.removeEventListener("accounts:changed", onAccounts);
     };
   }, [session]);
 
@@ -155,6 +175,22 @@ export default function App() {
       .then((data) => {
         if (!cancelled && Array.isArray(data)) {
           setPositionCount(data.length);
+        }
+      })
+      .catch(() => {});
+
+    getQualifications()
+      .then((data) => {
+        if (!cancelled && Array.isArray(data)) {
+          setQualificationCount(data.length);
+        }
+      })
+      .catch(() => {});
+
+    getWorkExperiences()
+      .then((data) => {
+        if (!cancelled && Array.isArray(data)) {
+          setExperienceCount(data.length);
         }
       })
       .catch(() => {});
@@ -369,6 +405,28 @@ export default function App() {
             </button>
             <button
               type="button"
+              className={page === "qualifications" ? "nav-item is-active" : "nav-item"}
+              aria-current={page === "qualifications" ? "page" : undefined}
+              title={collapsed ? "Bằng cấp" : undefined}
+              onClick={() => openPage("qualifications")}
+            >
+              <Icon name="fa-certificate" />
+              <span>Bằng cấp</span>
+              <em>{qualificationCount}</em>
+            </button>
+            <button
+              type="button"
+              className={page === "experiences" ? "nav-item is-active" : "nav-item"}
+              aria-current={page === "experiences" ? "page" : undefined}
+              title={collapsed ? "Kinh nghiệm" : undefined}
+              onClick={() => openPage("experiences")}
+            >
+              <Icon name="fa-user-clock" />
+              <span>Kinh nghiệm</span>
+              <em>{experienceCount}</em>
+            </button>
+            <button
+              type="button"
               className={page === "files" ? "nav-item is-active" : "nav-item"}
               aria-current={page === "files" ? "page" : undefined}
               title={collapsed ? "Tệp" : undefined}
@@ -392,6 +450,10 @@ export default function App() {
           <FilesPage onCount={setFileTotal} />
         ) : page === "profiles" ? (
           <UserProfilesPage onCount={setProfileTotal} />
+        ) : page === "qualifications" ? (
+          <QualificationsPage onCount={setQualificationTotal} />
+        ) : page === "experiences" ? (
+          <WorkExperiencesPage onCount={setExperienceTotal} />
         ) : page === "positions" ? (
           <PositionsPage onCount={setPositionTotal} />
         ) : (

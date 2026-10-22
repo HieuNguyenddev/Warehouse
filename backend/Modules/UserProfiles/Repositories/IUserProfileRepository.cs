@@ -8,6 +8,8 @@ public interface IUserProfileRepository
 
     Task AlignEmployeeCodesAsync(CancellationToken cancellationToken = default);
 
+    Task EnsureMissingProfilesAsync(CancellationToken cancellationToken = default);
+
     Task<UserProfile?> FindAsync(int id, CancellationToken cancellationToken = default);
 
     Task<UserProfile?> FindTrackedAsync(int id, CancellationToken cancellationToken = default);

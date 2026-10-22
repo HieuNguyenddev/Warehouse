@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using RoleManagement.Api.Modules.Positions.Entities;
+using RoleManagement.Api.Modules.Qualifications.Entities;
 using RoleManagement.Api.Modules.Roles.Entities;
+using RoleManagement.Api.Modules.WorkExperiences.Entities;
 using RoleManagement.Api.Modules.UserProfiles.Entities;
 using RoleManagement.Api.Modules.Users.Entities;
 
@@ -20,6 +22,10 @@ public class AppDbContext : DbContext
     public DbSet<User> Users => Set<User>();
 
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
+
+    public DbSet<Qualification> Qualifications => Set<Qualification>();
+
+    public DbSet<WorkExperience> WorkExperiences => Set<WorkExperience>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -211,6 +217,88 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(profile => profile.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Qualification>(entity =>
+        {
+            entity.ToTable("Qualifications");
+
+            entity.HasKey(item => item.Id);
+
+            entity.Property(item => item.Kind)
+                .IsRequired();
+
+            entity.Property(item => item.Name)
+                .HasMaxLength(150)
+                .IsRequired();
+
+            entity.Property(item => item.Major)
+                .HasMaxLength(120);
+
+            entity.Property(item => item.Grade)
+                .HasMaxLength(40);
+
+            entity.Property(item => item.Issuer)
+                .HasMaxLength(150);
+
+            entity.Property(item => item.CredentialNumber)
+                .HasMaxLength(50);
+
+            entity.HasIndex(item => item.CredentialNumber)
+                .IsUnique();
+
+            entity.Property(item => item.Note)
+                .HasMaxLength(250);
+
+            entity.Property(item => item.DocumentUrl)
+                .HasMaxLength(255);
+
+            entity.Property(item => item.DocumentName)
+                .HasMaxLength(255);
+
+            entity.Property(item => item.CreatedAt)
+                .IsRequired();
+
+            entity.HasIndex(item => item.UserProfileId);
+
+            entity.HasOne(item => item.Profile)
+                .WithMany()
+                .HasForeignKey(item => item.UserProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<WorkExperience>(entity =>
+        {
+            entity.ToTable("WorkExperiences");
+
+            entity.HasKey(item => item.Id);
+
+            entity.Property(item => item.Company)
+                .HasMaxLength(150)
+                .IsRequired();
+
+            entity.Property(item => item.JobTitle)
+                .HasMaxLength(120)
+                .IsRequired();
+
+            entity.Property(item => item.StartedOn)
+                .IsRequired();
+
+            entity.Property(item => item.IsCurrent)
+                .HasDefaultValue(false);
+
+            entity.Property(item => item.Description)
+                .HasMaxLength(500);
+
+            entity.Property(item => item.CreatedAt)
+                .IsRequired();
+
+            entity.HasIndex(item => item.UserProfileId);
+
+            entity.HasOne(item => item.Profile)
+                .WithMany()
+                .HasForeignKey(item => item.UserProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using RoleManagement.Api.Modules.Auth;
 using RoleManagement.Api.Modules.Positions.Repositories;
 using RoleManagement.Api.Modules.Roles.Repositories;
+using RoleManagement.Api.Modules.UserProfiles.Repositories;
 using RoleManagement.Api.Modules.Users.DTOs;
 using RoleManagement.Api.Modules.Users.Entities;
 using RoleManagement.Api.Modules.Users.Repositories;
@@ -12,6 +13,7 @@ namespace RoleManagement.Api.Modules.Users.Services;
 public class UserService : IUserService
 {
     private readonly IUserRepository _users;
+    private readonly IUserProfileRepository _profiles;
     private readonly IRoleRepository _roles;
     private readonly IPositionRepository _positions;
     private readonly IPasswordHasher<User> _passwordHasher;
@@ -19,12 +21,14 @@ public class UserService : IUserService
 
     public UserService(
         IUserRepository users,
+        IUserProfileRepository profiles,
         IRoleRepository roles,
         IPositionRepository positions,
         IPasswordHasher<User> passwordHasher,
         IOptions<SeedOptions> seed)
     {
         _users = users;
+        _profiles = profiles;
         _roles = roles;
         _positions = positions;
         _passwordHasher = passwordHasher;
@@ -87,6 +91,7 @@ public class UserService : IUserService
         user.PasswordHash = _passwordHasher.HashPassword(user, password);
 
         await _users.AddAsync(user, cancellationToken);
+        await _profiles.EnsureMissingProfilesAsync(cancellationToken);
 
         var created = await _users.FindAsync(user.Id, cancellationToken);
         return UserResult.Ok(UserResponse.From(created!));
