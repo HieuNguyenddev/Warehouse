@@ -193,16 +193,23 @@ export default function ProfileHistory({
                   type="button"
                   className="primary"
                   disabled={disabled || saving || uploading || qualificationForm.name.trim() === ""}
-                  onClick={() => run(() => createQualification({
-                    userProfileId: Number(profileId),
-                    kind: Number(qualificationForm.kind),
-                    name: qualificationForm.name.trim(),
-                    issuer: qualificationForm.issuer.trim() || null,
-                    issuedOn: qualificationForm.issuedOn || null,
-                    expiresOn: qualificationForm.expiresOn || null,
-                    documentUrl: qualificationForm.documentUrl || null,
-                    documentName: qualificationForm.documentName || null,
-                  }))}
+                  onClick={() => {
+                    const idNum = Number(profileId);
+                    if (!idNum || Number.isNaN(idNum)) {
+                      setError("Chưa xác định được hồ sơ nhân sự (thiếu profileId). Hãy lưu hồ sơ trước.");
+                      return;
+                    }
+                    run(() => createQualification({
+                      userProfileId: idNum,
+                      kind: Number(qualificationForm.kind),
+                      name: qualificationForm.name.trim(),
+                      issuer: qualificationForm.issuer.trim() || null,
+                      issuedOn: qualificationForm.issuedOn || null,
+                      expiresOn: qualificationForm.expiresOn || null,
+                      documentUrl: qualificationForm.documentUrl || null,
+                      documentName: qualificationForm.documentName || null,
+                    }));
+                  }}
                 >
                   <Icon name={saving ? "fa-spinner fa-spin" : "fa-check"} />
                   {saving ? "Đang lưu…" : "Lưu vào hồ sơ"}
@@ -298,14 +305,21 @@ export default function ProfileHistory({
                   type="button"
                   className="primary"
                   disabled={disabled || saving || experienceForm.company.trim() === "" || experienceForm.jobTitle.trim() === "" || experienceForm.startedOn === ""}
-                  onClick={() => run(() => createWorkExperience({
-                    userProfileId: Number(profileId),
-                    company: experienceForm.company.trim(),
-                    jobTitle: experienceForm.jobTitle.trim(),
-                    startedOn: experienceForm.startedOn,
-                    endedOn: experienceForm.isCurrent ? null : (experienceForm.endedOn || null),
-                    isCurrent: experienceForm.isCurrent,
-                  }))}
+                  onClick={() => {
+                    const idNum = Number(profileId);
+                    if (!idNum || Number.isNaN(idNum)) {
+                      setError("Chưa xác định được hồ sơ nhân sự (thiếu profileId). Hãy lưu hồ sơ trước.");
+                      return;
+                    }
+                    run(() => createWorkExperience({
+                      userProfileId: idNum,
+                      company: experienceForm.company.trim(),
+                      jobTitle: experienceForm.jobTitle.trim(),
+                      startedOn: experienceForm.startedOn,
+                      endedOn: experienceForm.isCurrent ? null : (experienceForm.endedOn || null),
+                      isCurrent: experienceForm.isCurrent,
+                    }));
+                  }}
                 >
                   <Icon name={saving ? "fa-spinner fa-spin" : "fa-check"} />
                   {saving ? "Đang lưu…" : "Lưu vào hồ sơ"}

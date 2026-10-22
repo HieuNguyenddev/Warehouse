@@ -179,6 +179,7 @@ export const emptyProfileForm = {
 
 export function profileToForm(profile) {
   return {
+    id: profile.id,
     userId: profile.userId ? String(profile.userId) : "",
     fullName: profile.fullName || "",
     dateOfBirth: profile.dateOfBirth ? String(profile.dateOfBirth).slice(0, 10) : "",

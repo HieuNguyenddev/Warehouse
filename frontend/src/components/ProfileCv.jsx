@@ -532,7 +532,7 @@ export default function ProfileCv({
                     ) : null}
                     {block.id === "qualifications" || block.id === "experience" ? (
                       <ProfileHistory
-                        profileId={draft.id}
+                        profileId={draft?.id || activeId || active?.id}
                         section={block.id}
                         qualifications={qualifications}
                         experiences={experiences}
