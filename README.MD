@@ -714,7 +714,7 @@ Dừng database khi không sửa mã nữa:
 
 Menu **Trợ lý** gửi câu hỏi tới API. Trên VPS Ubuntu 24.04 (1 CPU, 2 GB RAM, 25 GB đĩa), Ollama chạy trong Compose và tải `qwen2.5:0.5b`. File mô hình 397 MB, lúc trả lời chiếm khoảng 452 MB RAM. Cổng `11434` không mở ra internet. Các bước máy development nằm ở mục 4 trong `backend/README.MD`.
 
-Giới hạn bộ nhớ trong `docker-compose.yml`: API 320 MB, PostgreSQL 192 MB, Garage 128 MB, Ollama 640 MB, frontend 32 MB, Nginx 24 MB. Ollama giữ một mô hình, một lượt, ngữ cảnh 2048 token, và nhả mô hình sau 2 phút không dùng.
+Giới hạn bộ nhớ trong `docker-compose.yml`: API 192 MB, PostgreSQL 96 MB, Garage 64 MB, Ollama 640 MB, frontend 24 MB, Nginx 16 MB. Tổng trần khoảng 1 GB. Container không dùng thêm swap. Ollama giữ một mô hình, một luồng, một lượt, ngữ cảnh 1024 token, và nhả mô hình sau 60 giây không dùng.
 
 ### 13.1. Thêm 1 GB swap
 
@@ -751,8 +751,8 @@ sudo docker compose exec -T api printenv Ollama__BaseUrl Ollama__Model
 
 ### 13.3. Kiểm tra trên admin
 
-Mở `https://admin.minhhieudev.id.vn`, đăng nhập tài khoản Admin, bấm **Trợ lý**. Ô mô hình là `qwen2.5:0.5b`. Gửi một câu ngắn. Enter gửi, Shift+Enter xuống dòng. Câu đầu hơi chậm vì mô hình đang nạp. Câu sau trong vòng 2 phút nhanh hơn.
+Mở `https://admin.minhhieudev.id.vn`, đăng nhập tài khoản Admin, bấm **Trợ lý**. Ô mô hình là `qwen2.5:0.5b`. Gửi một câu ngắn. Enter gửi, Shift+Enter xuống dòng. Câu đầu hơi chậm vì mô hình đang nạp. Câu sau trong vòng 60 giây nhanh hơn.
 
 - **Không kết nối được Ollama**: `sudo docker compose ps` không thấy `ollama` đang chạy, hoặc `.env` vẫn ghi `127.0.0.1`.
 - **Ollama chưa có mô hình chat**: `sudo docker compose up -d --build` để `ollama-pull` chạy lại.
-- **Container bị kill hoặc máy đơ**: `docker stats --no-stream`. Ollama trên máy này giữ trần 640 MB.
+- **Container bị kill hoặc máy đơ**: `docker stats --no-stream`. Ollama giữ trần 640 MB và không được mượn swap. PostgreSQL được giữ trước nếu máy hết RAM.

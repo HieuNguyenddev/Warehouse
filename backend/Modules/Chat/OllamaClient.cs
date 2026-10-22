@@ -80,9 +80,9 @@ public class OllamaClient
         {
             new("system", SystemPrompt),
         };
-        messages.AddRange(request.Messages.TakeLast(4).Select(turn => new OllamaMessage(turn.Role, Clip(turn.Content))));
+        messages.AddRange(request.Messages.TakeLast(2).Select(turn => new OllamaMessage(turn.Role, Clip(turn.Content))));
 
-        var payload = new OllamaChat(model, messages, false, false, new OllamaSampling(0.3, 384, 2048));
+        var payload = new OllamaChat(model, messages, false, false, new OllamaSampling(0.3, 256, 1024));
         using var document = await SendAsync(HttpMethod.Post, "/api/chat", payload, cancellationToken);
         var reply = VisibleReply(ReadReply(document.RootElement));
         if (string.IsNullOrWhiteSpace(reply))
@@ -232,7 +232,7 @@ public class OllamaClient
     private static string Clip(string content)
     {
         var text = content.Trim();
-        return text.Length <= 800 ? text : text[..800];
+        return text.Length <= 500 ? text : text[..500];
     }
 
     private static bool IsChatModel(string id)

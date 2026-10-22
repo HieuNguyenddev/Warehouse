@@ -6,7 +6,8 @@ API ASP.NET Core .NET 10 trong thư mục này. Dữ liệu nằm ở PostgreSQL
 | --- | --- | --- |
 | Cách chạy | .NET SDK + PostgreSQL | Docker Compose |
 | API | `http://localhost:5252` | `https://api.minhhieudev.id.vn` |
-| PostgreSQL | `localhost:5432` | trong Docker, cổng `5432` |
+| PostgreSQL | `localhost:5432` | trong Docker, cổng `5432` trên host |
+| Ollama | `http://127.0.0.1:11434` | container `ollama`, mô hình `qwen2.5:0.5b` |
 | Swagger | `http://localhost:5252/swagger` | `https://api.minhhieudev.id.vn/swagger` |
 
 User PostgreSQL là `postgres`. Mật khẩu database, khóa ký JWT và mật khẩu tài khoản admin không nằm trong git. Máy thật và VPS cùng đặt các giá trị đó trong file `backend/.env`. `dotnet run` đọc file này khi đứng trong thư mục `backend`. Docker Compose đưa các biến trong file vào container.
@@ -123,19 +124,22 @@ docker compose stop postgres
 
 - `docker compose stop postgres` dừng container nhưng giữ volume `postgres-data`, nên dữ liệu còn khi bật lại.
 
-## 2. Chạy trên VPS
+## 2. Cài trên VPS Ubuntu 24.04
 
-VPS dùng Ubuntu, Docker Compose, khoảng 2 GB RAM. API không mở cổng `8080` ra internet. Nginx trong Compose nhận cổng `80` và `443`, rồi chuyển `api.minhhieudev.id.vn` vào container API.
+Máy đích: 1 CPU, 2 GB RAM, 25 GB đĩa. API không mở cổng `8080` ra internet. Nginx trong Compose nhận `80` và `443`. Ollama và Garage chỉ nói chuyện trong mạng Docker.
 
 Thư mục trên VPS: `/root/Documents/Warehouse`. Compose nằm ở `/root/Documents/Warehouse/backend`.
 
+Trần RAM lúc chạy: API 192 MB, PostgreSQL 96 MB, Garage 64 MB, Ollama 640 MB, frontend 24 MB, Nginx 16 MB. Cộng lại khoảng 1 GB, phần còn lại của 2 GB dành cho Ubuntu. Mỗi trần đi kèm `memswap_limit` bằng đúng trần đó, nên container không chiếm swap. Swap 1 GB của máy chỉ dùng khi build image. `qwen2.5:0.5b` lúc trả lời chiếm khoảng 452 MB và được nhả sau 60 giây. Ngữ cảnh 1024 token, một luồng, một lượt. File mô hình 397 MB. Log mỗi container tối đa hai file, mỗi file 10 MB. Container tự chạy lại sau reboot. `ollama-pull` chạy một lần rồi thoát.
+
 ### 2.1. Cài Docker
 
-Trên Ubuntu 24.04, dùng user có quyền `sudo`:
+SSH vào VPS bằng user có `sudo`:
 
 ```bash
+ssh -p 22 root@103.183.120.48
 sudo apt update
-sudo apt install -y ca-certificates curl git
+sudo apt install -y ca-certificates curl git openssl
 sudo install -m 0755 -d /etc/apt/keyrings
 sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
 sudo chmod a+r /etc/apt/keyrings/docker.asc
@@ -144,13 +148,14 @@ sudo apt update
 sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 sudo systemctl enable --now docker
 docker compose version
+df -h /
 ```
 
-- Khối lệnh thêm kho Docker chính thức rồi cài Engine và plugin `docker compose`.
-- `sudo systemctl enable --now docker` cho Docker chạy ngay và chạy lại sau khi reboot.
-- `docker compose version` in được số phiên bản thì lệnh Compose đã có. Dùng `docker compose`, không dùng `docker-compose`.
+- Khối lệnh thêm kho Docker chính thức rồi cài Engine và plugin Compose.
+- `docker compose version` in được số phiên bản thì dùng `docker compose`, không dùng `docker-compose`.
+- `df -h /` phải còn ít nhất 8 GB trống trước lần build đầu. Image SDK .NET và image Ollama chiếm phần lớn chỗ đó.
 
-Mở cổng SSH, HTTP, HTTPS. PostgreSQL chỉ mở nếu cần nối DBeaver từ mạng tin cậy. Không chuyển tiếp cổng `5432` ra internet.
+Mở SSH, HTTP và HTTPS. Không mở `5432` và `11434` bằng UFW.
 
 ```bash
 sudo ufw allow OpenSSH
@@ -160,80 +165,40 @@ sudo ufw --force enable
 sudo ufw status
 ```
 
-### 2.2. Lấy mã nguồn và chạy
+Compose vẫn gắn cổng `5432` của PostgreSQL ra host để máy development nối database. Docker chèn luật riêng, nên UFW không chặn cổng này. Chỉ giữ cổng đó khi cần DBeaver hoặc `dotnet run` từ xa.
+
+### 2.2. Thêm 1 GB swap
+
+Làm một lần nếu `swapon --show` chưa có dòng nào. Swap giữ máy sống lúc build image và lúc nạp mô hình.
+
+```bash
+sudo fallocate -l 1G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+free -h
+```
+
+- `free -h` phải thấy Swap khoảng 1,0 Gi.
+- Máy đã cài Ollama bằng systemd thì tắt dịch vụ đó: `sudo systemctl disable --now ollama`.
+
+### 2.3. Lấy mã nguồn
 
 ```bash
 sudo mkdir -p /root/Documents/Warehouse
 sudo git clone https://github.com/HieuNguyenddev/Warehouse.git /root/Documents/Warehouse
 cd /root/Documents/Warehouse/backend
-```
-
-- `git clone` tải cả repository. Frontend nằm cạnh `backend`, Compose cần thư mục đó để build giao diện admin.
-- Chưa chạy `docker compose up` ở bước này. Tạo `.env` trước, nếu không PostgreSQL nhận mật khẩu rỗng.
-
-### 2.3. Tạo file `.env` trên VPS
-
-`appsettings.json` chỉ giữ tên issuer, audience và tên hiển thị. Khóa ký token và mật khẩu admin nằm trong `backend/.env`. Compose từ chối chạy nếu thiếu `JWT_KEY` hoặc `SEED_PASSWORD`.
-
-| Biến | Ý nghĩa |
-| --- | --- |
-| `POSTGRES_PASSWORD` | Mật khẩu user `postgres`. Phải khớp volume database đang có |
-| `JWT_KEY` | Khóa ký JWT do mình tự gõ, ít nhất 32 ký tự. Không dùng khóa đã từng commit trong `appsettings.json` |
-| `SEED_USERNAME` | Tên đăng nhập tài khoản tạo lúc khởi động. Bỏ dòng này thì Compose dùng `admin` |
-| `SEED_PASSWORD` | Mật khẩu dùng khi tạo tài khoản đó lần đầu. Không ghi đè mật khẩu đã lưu trong database |
-| `CONNECTION_STRING` | Chuỗi API dùng trong Docker. Host là `postgres`, mật khẩu trùng `POSTGRES_PASSWORD`. GitHub Actions ghi dòng này nếu thiếu |
-| `CONNECTION_STRING_DEVELOPMENT` | Chuỗi khi `dotnet run` trên máy development. Host là IP VPS, ví dụ `103.183.120.48`. Container trên VPS không đọc dòng này |
-| `GARAGE_ACCESS_KEY` | Khóa S3, dạng `GK` cộng 30 ký tự hex. `scripts/ensure-garage.sh` sinh nếu thiếu hoặc sai dạng |
-| `GARAGE_SECRET_KEY` | Bí mật của khóa S3, 64 ký tự hex. Cùng script trên |
-| `GARAGE_BUCKET` | Bucket chứa ảnh và tệp. Mặc định `warehouse` |
-| `TURNSTILE_SECRET_KEY` | Secret kiểm tra token trên API trước khi đối chiếu mật khẩu. Để trống thì API bỏ qua bước này. Site Key production chỉ nằm trong `frontend/.env.production` |
-
-#### Lấy `TURNSTILE_SITE_KEY` và `TURNSTILE_SECRET_KEY`
-
-Đăng nhập [dash.cloudflare.com](https://dash.cloudflare.com/), mở **Turnstile**, bấm **Add Widget**. Góc form có **View docs** trỏ tới tài liệu gốc của Cloudflare. Form tiêu đề **Create a new Turnstile widget** dùng để chặn bot trên trang đăng nhập.
-
-1. **Widget name.** Gõ một tên để nhận ra widget sau này, ví dụ `Warehouse Admin`.
-2. **Hostname Management.** Ô **Hostnames** nhận hostname tự gõ hoặc site đã có trên Cloudflare. Gõ `admin.minhhieudev.id.vn`, đúng host của `https://admin.minhhieudev.id.vn/`, không kèm `https://` và không có dấu `/` cuối. Widget chứa tối đa 10 hostname. Dòng `0 out of 10` nghĩa là chưa có hostname nào. Cloudflare yêu cầu ít nhất 1 hostname trước khi tạo.
-3. **Widget Mode.** Chọn cách ô xác thực hiện trên form đăng nhập:
-   - **Managed**, có nhãn Recommended. Cloudflare tự chọn cách kiểm tra theo mức rủi ro của lượt truy cập. Phần lớn khách gặp bước không cần bấm hoặc không hiện. Khách có rủi ro cao gặp thêm thử thách. Dùng mode này cho trang admin.
-   - **Non-interactive.** Khách thấy vòng xoay trong lúc kiểm tra và không cần bấm. Trải nghiệm giống nhau với mọi lượt truy cập.
-   - **Invisible.** Kiểm tra im lặng, màn hình không hiện gì.
-4. **Skip future security rule challenges for verified visitors.** Ô này là Pre-clearance, bật khi muốn. Khách đã qua Turnstile được bỏ qua các security rule có mức clearance bằng hoặc thấp hơn. Chỉ có tác dụng khi tên miền đi qua proxy Cloudflare. Thời gian bỏ qua lấy từ **Challenge Passage** của domain, mặc định 30 phút. Form đăng nhập vẫn chạy khi để ô này tắt.
-5. Bấm **Create**. Trang sau đó hiện **Site Key** và **Secret Key**. Site Key ghi vào `VITE_TURNSTILE_SITE_KEY` trong `frontend/.env.production`. Secret Key ghi vào `TURNSTILE_SECRET_KEY` của `backend/.env`. Mở lại đúng widget trong danh sách Turnstile khi cần xem lại hai khóa.
-
-Trên VPS, đứng trong `/root/Documents/Warehouse/backend` rồi ghi secret vào `.env`. Thay chuỗi mẫu bằng đúng Secret Key Cloudflare vừa hiện. Không thêm khoảng trắng hai bên dấu `=`. Site Key không ghi vào file này. Cách tạo `frontend/.env.production` nằm ở `frontend/README.MD`.
-
-```bash
-umask 077
-grep -q '^TURNSTILE_SECRET_KEY=.' .env || printf '%s\n' 'TURNSTILE_SECRET_KEY=SECRET_KEY_TU_CLOUDFLARE' >> .env
-chmod 600 .env
-grep -c '^TURNSTILE_SECRET_KEY=.' .env
-```
-
-- `grep -q` chỉ thêm dòng khi chưa có. Dòng đã có thì sửa tay trong `.env`, không chạy lại lệnh `printf`.
-- `grep -c` phải in `1`.
-- `TURNSTILE_SECRET_KEY` chỉ nằm trong `.env`. Không `git add` file này.
-- API đọc secret lúc khởi động. Đổi secret xong thì tạo lại container API. Đổi Site Key trong `frontend/.env.production` thì build lại frontend:
-
-```bash
-sudo docker compose up -d --build
-```
-
-Máy development để trống `TURNSTILE_SECRET_KEY` trong `backend/.env` thì API bỏ qua bước kiểm tra. Trang `admin.minhhieudev.id.vn` lấy Site Key từ `frontend/.env.production`.
-
-Từ máy đang dùng, SSH vào VPS rồi đứng đúng thư mục Compose:
-
-```bash
-ssh -p 22 root@103.183.120.48
-cd /root/Documents/Warehouse/backend
 pwd
-ls .env.example
 ```
 
-- `ssh -p 22 root@103.183.120.48` mở shell trên VPS. Các lệnh sau chạy trên VPS, không chạy trên máy cá nhân.
-- `cd /root/Documents/Warehouse/backend` vào thư mục có `docker-compose.yml`.
-- `pwd` phải in `/root/Documents/Warehouse/backend`. Sai thư mục thì `.env` không được Compose đọc.
-- `ls .env.example` xác nhận file mẫu đã có sau `git clone` hoặc `git pull`.
+- `pwd` phải in `/root/Documents/Warehouse/backend`.
+- Frontend nằm cạnh `backend`. Compose build giao diện từ thư mục đó.
+- Thư mục đã clone rồi thì `cd /root/Documents/Warehouse && sudo git pull --ff-only`.
+
+### 2.4. Tạo `backend/.env`
+
+Đứng trong `/root/Documents/Warehouse/backend`. File này không đưa vào git.
 
 Database đã chạy từ trước thì lấy đúng mật khẩu volume hiện tại:
 
@@ -241,10 +206,24 @@ Database đã chạy từ trước thì lấy đúng mật khẩu volume hiện 
 docker compose exec postgres printenv POSTGRES_PASSWORD
 ```
 
-- Lệnh in mật khẩu container `postgres` đang chạy. Dùng đúng chuỗi đó cho `POSTGRES_PASSWORD`. Volume `postgres-data` không đổi mật khẩu khi chỉ sửa `.env`.
-- Container chưa có thì bỏ qua lệnh này và tự chọn một mật khẩu dài.
+Container chưa có thì tự chọn một mật khẩu dài và bỏ qua lệnh trên.
 
-VPS đã có `.env` chỉ với `POSTGRES_PASSWORD` thì thêm các dòng còn lại, không ghi đè file:
+Tạo file khi chưa có. Hai chỗ `MAT_KHAU_DANG_DUNG` phải giống nhau. `JWT_KEY` tự gõ, dài ít nhất 32 ký tự, không có khoảng trắng.
+
+```bash
+cd /root/Documents/Warehouse/backend
+umask 077
+test -f .env || printf '%s\n' \
+  'POSTGRES_PASSWORD=MAT_KHAU_DANG_DUNG' \
+  'JWT_KEY=KHOA_TU_DAT_IT_NHAT_32_KY_TU' \
+  'SEED_USERNAME=Admin' \
+  'SEED_PASSWORD=Admin@123' \
+  'CONNECTION_STRING=Host=postgres;Port=5432;Database=RoleManagementDb;Username=postgres;Password=MAT_KHAU_DANG_DUNG' \
+  'TURNSTILE_SECRET_KEY=' > .env
+chmod 600 .env
+```
+
+File đã có chỉ với `POSTGRES_PASSWORD` thì thêm dòng còn thiếu, không xóa dòng cũ:
 
 ```bash
 umask 077
@@ -252,24 +231,32 @@ grep -q '^JWT_KEY=.' .env || printf '%s\n' 'JWT_KEY=KHOA_TU_DAT_IT_NHAT_32_KY_TU
 grep -q '^SEED_USERNAME=.' .env || printf '%s\n' 'SEED_USERNAME=Admin' >> .env
 grep -q '^SEED_PASSWORD=.' .env || printf '%s\n' 'SEED_PASSWORD=Admin@123' >> .env
 grep -q '^CONNECTION_STRING=Host=postgres;' .env || printf '%s\n' "CONNECTION_STRING=Host=postgres;Port=5432;Database=RoleManagementDb;Username=postgres;Password=$(grep -E '^POSTGRES_PASSWORD=' .env | tail -n 1 | cut -d= -f2-)" >> .env
+grep -q '^TURNSTILE_SECRET_KEY=' .env || printf '%s\n' 'TURNSTILE_SECRET_KEY=' >> .env
 chmod 600 .env
 ```
 
-- `JWT_KEY` tự gõ một chuỗi bất kỳ dài ít nhất 32 ký tự, thay cho `KHOA_TU_DAT_IT_NHAT_32_KY_TU`. Không dùng khoảng trắng. Khóa chỉ nằm trong `.env`, không dán vào git.
-- `grep -q` kiểm tra dòng đã có chưa. `>>` thêm vào cuối file. Dòng `POSTGRES_PASSWORD` cũ được giữ.
-- `SEED_PASSWORD` là mật khẩu admin tự đặt. Không thêm khoảng trắng hai bên dấu `=`. Không bọc dấu nháy. Ký tự `@` giữ nguyên.
-- Máy chưa có file thì tạo đủ năm dòng. `CONNECTION_STRING` dùng cùng mật khẩu với `POSTGRES_PASSWORD`, host là `postgres`. `>` chỉ dùng khi file chưa tồn tại, vì lệnh này xóa nội dung cũ:
+| Biến | Ý nghĩa |
+| --- | --- |
+| `POSTGRES_PASSWORD` | Mật khẩu user `postgres`. Phải khớp volume `postgres-data` đang có |
+| `JWT_KEY` | Khóa ký JWT, ít nhất 32 ký tự |
+| `SEED_USERNAME` | Tên đăng nhập tạo lúc khởi động. Bỏ dòng thì Compose dùng `admin` |
+| `SEED_PASSWORD` | Mật khẩu lúc tạo tài khoản đó lần đầu. Không ghi đè mật khẩu đã lưu |
+| `CONNECTION_STRING` | Chuỗi trong Docker. Host là `postgres`, mật khẩu trùng `POSTGRES_PASSWORD` |
+| `CONNECTION_STRING_DEVELOPMENT` | Chỉ khi `dotnet run` trên máy development. Container trên VPS không đọc dòng này |
+| `TURNSTILE_SECRET_KEY` | Secret Cloudflare. Để trống thì API bỏ qua bước kiểm tra |
+| `OLLAMA_URL` | Để trống. Compose dùng `http://ollama:11434` |
+| `OLLAMA_MODEL` | Để trống. Compose dùng `qwen2.5:0.5b` |
+
+Site Key và Secret Key lấy ở [dash.cloudflare.com](https://dash.cloudflare.com/), mục **Turnstile**, **Add Widget**. Hostname là `admin.minhhieudev.id.vn`, mode **Managed**. Site Key ghi vào `frontend/.env.production`. Secret Key ghi vào `TURNSTILE_SECRET_KEY`. Cách tạo file frontend nằm ở `frontend/README.MD`.
+
+Sinh khóa Garage và `garage/garage.toml` nếu chưa có:
 
 ```bash
-umask 077
-printf '%s\n' \
-  'POSTGRES_PASSWORD=MAT_KHAU_DANG_DUNG' \
-  'JWT_KEY=KHOA_TU_DAT_IT_NHAT_32_KY_TU' \
-  'SEED_USERNAME=Admin' \
-  'SEED_PASSWORD=Admin@123' \
-  'CONNECTION_STRING=Host=postgres;Port=5432;Database=RoleManagementDb;Username=postgres;Password=MAT_KHAU_DANG_DUNG' > .env
-chmod 600 .env
+bash /root/Documents/Warehouse/scripts/ensure-garage.sh
 ```
+
+- Script ghi `GARAGE_ACCESS_KEY`, `GARAGE_SECRET_KEY`, `GARAGE_BUCKET=warehouse` khi thiếu hoặc còn giá trị mẫu.
+- `garage/garage.toml` không đưa vào git. Ảnh và tệp đi vào bucket `warehouse`. Cổng S3 không mở ra internet.
 
 Kiểm tra mà không in bí mật:
 
@@ -279,35 +266,57 @@ grep -c '^POSTGRES_PASSWORD=.' .env
 grep -c '^JWT_KEY=.' .env
 grep -c '^SEED_PASSWORD=.' .env
 grep -c '^CONNECTION_STRING=Host=postgres;' .env
+grep -c '^GARAGE_ACCESS_KEY=GK' .env
+test -f garage/garage.toml && echo garage_toml_ok
 ```
 
-- `ls -l .env` phải thấy quyền `-rw-------`.
-- Mỗi lệnh `grep -c` phải in `1`.
-- Không `git add .env`. File này nằm trong `.gitignore`. `backend/.dockerignore` cũng bỏ file này khi build image.
-- GitHub Actions dừng trước `docker compose up` nếu thiếu `POSTGRES_PASSWORD`, `JWT_KEY` hoặc `SEED_PASSWORD`. Thiếu `CONNECTION_STRING`, hoặc host của dòng đó không phải `postgres`, thì workflow ghi `Host=postgres;Port=5432;Database=RoleManagementDb;Username=postgres;Password=` cộng đúng `POSTGRES_PASSWORD`. Container trên VPS không dùng `CONNECTION_STRING_DEVELOPMENT`.
-- Cùng lúc đó `scripts/ensure-garage.sh` ghi `GARAGE_ACCESS_KEY`, `GARAGE_SECRET_KEY`, `GARAGE_BUCKET` khi thiếu, và tạo `garage/garage.toml` từ file mẫu. File toml không đưa vào git. Ảnh và tệp của container API đi vào Garage, không còn volume `avatar-data`.
+- `ls -l .env` phải thấy `-rw-------`.
+- Mỗi `grep -c` phải in `1`.
+- Dòng cuối phải in `garage_toml_ok`.
 
-Tài khoản admin đã được tạo bằng mật khẩu cũ thì `SEED_PASSWORD` mới không đổi mật khẩu trong database. Đăng nhập bằng mật khẩu đang dùng, rồi đổi mật khẩu trong giao diện. Lần cài mới, API tạo user bằng đúng `SEED_PASSWORD`.
-
-Đổi khóa JWT xong, tạo lại container API để nhận biến mới. Token cũ hết hiệu lực.
+### 2.5. Dựng stack
 
 ```bash
-docker compose up -d --force-recreate --no-deps api
-```
-
-Rồi mới chạy stack:
-
-```bash
+cd /root/Documents/Warehouse/backend
 sudo docker compose up -d --build
 sudo docker compose ps
+sudo docker compose exec -T ollama ollama list
+sudo docker compose exec -T api printenv Ollama__BaseUrl Ollama__Model
+sudo docker builder prune -f
 ```
 
-- `docker compose up -d --build` build image API và frontend, kéo PostgreSQL và Nginx, rồi chạy nền. API lấy mật khẩu database, `JWT_KEY` và `SEED_PASSWORD` từ `.env`, không lấy từ `appsettings.json`.
-- API chờ PostgreSQL `healthy` rồi mới start và tự migrate.
-- `docker compose ps` phải thấy `api`, `frontend`, `nginx` là `running`, `postgres` là `healthy`.
-- Thiếu `.env` thì GitHub Actions dừng trước `docker compose up` và in dòng `Thiếu .../backend/.env`.
+- Lần đầu kéo image và build API, frontend. `ollama-pull` tải `qwen2.5:0.5b` rồi thoát mã 0. API chỉ chạy sau PostgreSQL, Garage và bước kéo mô hình.
+- `docker compose ps` phải thấy `api`, `frontend`, `nginx`, `ollama` là `running`, `postgres` và `garage` là `healthy`, `ollama-pull` là `exited`.
+- `ollama list` phải có `qwen2.5:0.5b`.
+- `printenv` phải in `http://ollama:11434` và `qwen2.5:0.5b`.
+- `docker builder prune -f` xóa cache build để đĩa 25 GB không đầy sau vài lần deploy.
 
-Đổi mật khẩu sau này: sửa `.env`, rồi đổi luôn mật khẩu bên trong database. Chỉ sửa file thì API không đăng nhập được volume cũ.
+Đăng nhập qua Nginx khi DNS và chứng chỉ đã có. Thay `MAT_KHAU_ADMIN` bằng `SEED_PASSWORD`, hoặc bằng mật khẩu đã đổi trong giao diện nếu tài khoản tạo từ trước.
+
+```bash
+curl -s https://api.minhhieudev.id.vn/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"Admin","password":"MAT_KHAU_ADMIN"}'
+```
+
+- JSON có `token` nghĩa là API đang phục vụ.
+- `GET /api/roles` không kèm `Authorization: Bearer <token>` trả **401**.
+- Chưa có chứng chỉ thì gọi `http://IP-VPS` với header `Host: api.minhhieudev.id.vn`.
+- Mở `https://admin.minhhieudev.id.vn`, đăng nhập, vào **Trợ lý**. Ô mô hình là `qwen2.5:0.5b`.
+
+Xem log khi một service không lên:
+
+```bash
+cd /root/Documents/Warehouse/backend
+sudo docker compose logs api --tail 80
+sudo docker compose logs postgres --tail 40
+sudo docker compose logs ollama-pull --tail 40
+sudo docker stats --no-stream
+```
+
+- Ollama lúc trả lời nằm quanh 452 MB và dưới trần 640 MB. `free -h` lúc đó vẫn còn RAM trống. Sau 60 giây không hỏi, mô hình được nhả.
+
+Đổi mật khẩu database: sửa trong PostgreSQL rồi sửa `.env`. Chỉ sửa file thì API không vào được volume cũ.
 
 ```bash
 cd /root/Documents/Warehouse/backend
@@ -322,31 +331,9 @@ chmod 600 .env
 docker compose up -d --force-recreate --no-deps api
 ```
 
-- `ALTER USER` đổi mật khẩu user `postgres` trong volume đang có.
-- `grep -v` bỏ `POSTGRES_PASSWORD` và `CONNECTION_STRING` cũ, rồi ghi cả hai dòng với mật khẩu mới. Host của chuỗi kết nối vẫn là `postgres`. `JWT_KEY` và `SEED_PASSWORD` được giữ. Không dùng `>` để ghi đè cả file.
-- `--force-recreate --no-deps api` tạo lại API để nhận chuỗi kết nối mới. PostgreSQL không cần tạo lại.
+Đổi `JWT_KEY` xong cũng tạo lại container API. Token cũ hết hiệu lực. Tài khoản admin đã có thì `SEED_PASSWORD` mới không đổi mật khẩu trong database.
 
-Gọi API qua Nginx. Trên VPS đã có chứng chỉ và DNS `api` trỏ về IP máy:
-
-```bash
-curl -s https://api.minhhieudev.id.vn/api/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"MAT_KHAU_ADMIN"}'
-```
-
-- JSON có `token` nghĩa là API đang phục vụ và khóa JWT trong `.env` đã vào container. Thay `MAT_KHAU_ADMIN` bằng `SEED_PASSWORD`, hoặc bằng mật khẩu đã đổi trong giao diện nếu tài khoản tạo từ trước.
-- `GET /api/roles` không kèm header `Authorization: Bearer <token>` trả **401**.
-- Chưa có chứng chỉ thì gọi `http://IP-VPS` với header `Host: api.minhhieudev.id.vn`, vì Nginx chọn site theo tên miền.
-
-Xem log khi API không lên:
-
-```bash
-cd /root/Documents/Warehouse/backend
-sudo docker compose logs api --tail 80
-sudo docker compose logs postgres --tail 40
-```
-
-### 2.4. Cập nhật sau khi có commit mới
+### 2.6. Cập nhật sau commit mới
 
 ```bash
 cd /root/Documents/Warehouse
@@ -356,23 +343,23 @@ sudo docker compose up -d --build
 sudo docker compose up -d --force-recreate --no-deps nginx
 sudo docker compose exec -T nginx nginx -t
 sudo docker compose exec -T nginx nginx -s reload
+sudo docker builder prune -f
 ```
 
 - `git pull --ff-only` chỉ cập nhật khi không có commit local lệch nhánh.
-- `docker compose up -d --build` build lại image đổi mã nguồn.
-- `--force-recreate --no-deps nginx` tạo lại Nginx để đọc `nginx/default.conf` mới. Chỉ `docker compose up` không làm việc này nếu image Nginx không đổi.
-- `nginx -t` kiểm tra cấu hình. `nginx -s reload` nạp lại trong container. Dòng `signal process started` là reload đã nhận. Không dùng `systemctl reload nginx` vì máy không cài Nginx trên host.
+- `docker compose up -d --build` build lại image đổi mã nguồn. Mô hình đã nằm trong volume `ollama-data` thì `ollama-pull` thoát nhanh.
+- `--force-recreate --no-deps nginx` đọc `nginx/default.conf` mới. `nginx -s reload` nạp cấu hình trong container. Không dùng `systemctl reload nginx` vì host không cài Nginx.
 
-GitHub Actions làm các bước này khi đẩy nhánh `main`. Secret `DEPLOY_PATH` là `/root/Documents/Warehouse/backend`. Phần DNS, chứng chỉ và secret SSH nằm ở `README.MD` thư mục gốc repository.
+GitHub Actions làm các bước này khi đẩy nhánh `main`. Secret `DEPLOY_PATH` là `/root/Documents/Warehouse/backend`. DNS, chứng chỉ và khóa SSH nằm ở `README.MD` thư mục gốc.
 
-### 2.5. Dừng stack trên VPS
+### 2.7. Dừng stack
 
 ```bash
 cd /root/Documents/Warehouse/backend
 sudo docker compose down
 ```
 
-- `docker compose down` tắt và xóa container. Volume `postgres-data` vẫn giữ database. Thêm `-v` sẽ xóa luôn dữ liệu.
+- `docker compose down` tắt container. Volume `postgres-data`, `garage-meta`, `garage-data` và `ollama-data` vẫn giữ database, tệp và mô hình. Thêm `-v` xóa các volume đó.
 
 ## 3. Đường dẫn API
 
@@ -391,7 +378,7 @@ sudo docker compose down
 | `GET` | `/api/chat/models` | `{ configured, defaultModel, models, notice }`. Cần token Admin. Ollama không chạy thì danh sách lỗi kết nối |
 | `POST` | `/api/chat/messages` | Body `{ "model", "messages": [{ "role": "user"\|"assistant", "content" }] }`. Trả `{ reply, model }` |
 
-`messages` từ 1 đến 20 lượt. Mỗi `content` tối đa 4000 ký tự. Lượt cuối phải là `user`. API gửi Ollama tối đa 4 lượt gần nhất, mỗi lượt cắt còn 800 ký tự, ngữ cảnh 2048 token. Trình duyệt không gọi Ollama trực tiếp.
+`messages` từ 1 đến 20 lượt. Mỗi `content` tối đa 4000 ký tự. Lượt cuối phải là `user`. API gửi Ollama tối đa 2 lượt gần nhất, mỗi lượt cắt còn 500 ký tự, ngữ cảnh 1024 token, câu trả lời tối đa 256 token. Trình duyệt không gọi Ollama trực tiếp.
 
 ## 4. Chatbot với Ollama
 
@@ -425,35 +412,10 @@ curl -s http://127.0.0.1:11434/api/tags
 
 Frontend: `cd frontend && npm install && npm run dev`. Đăng nhập, mở **Trợ lý**, gửi một câu.
 
-### 4.2. VPS Ubuntu 24.04, 1 CPU, 2 GB RAM, 25 GB đĩa
+### 4.2. VPS
 
-Ollama nằm trong Compose, image `ollama/ollama:0.32.15`, giới hạn 640 MB. Service `ollama-pull` chạy `ollama pull qwen2.5:0.5b` một lần rồi thoát. API chờ lệnh đó xong. Nếu máy đã có dịch vụ Ollama của systemd, tắt trước để khỏi chiếm RAM: `sudo systemctl disable --now ollama`.
+Cài máy Ubuntu 24.04 theo mục 2. Compose tự kéo `qwen2.5:0.5b` và giới hạn Ollama ở 640 MB. Trên VPS để trống `OLLAMA_URL` và `OLLAMA_MODEL`.
 
-Thêm 1 GB swap nếu `swapon --show` trống:
-
-```bash
-sudo fallocate -l 1G /swapfile
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile
-sudo swapon /swapfile
-echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
-```
-
-Rồi dựng stack. Không ghi `OLLAMA_URL` trỏ `127.0.0.1` trong `.env` trên VPS.
-
-```bash
-cd /root/Documents/Warehouse/backend
-sudo docker compose up -d --build
-sudo docker compose exec -T ollama ollama list
-sudo docker compose exec -T api printenv Ollama__BaseUrl Ollama__Model
-```
-
-- `ollama list` phải có `qwen2.5:0.5b`.
-- `printenv` phải in `http://ollama:11434` và `qwen2.5:0.5b`.
-- `docker stats --no-stream` khi đang trả lời thấy Ollama quanh 452 MB và dưới trần 640 MB.
-
-Mở admin, vào **Trợ lý**, gửi một câu ngắn. Lỗi thường gặp:
-
-- **Không kết nối được Ollama**: container `ollama` không chạy, hoặc `.env` ghi `127.0.0.1`.
-- **Ollama chưa có mô hình chat**: chạy lại `sudo docker compose up -d --build`.
-- **Ollama từ chối câu trả lời**: `OLLAMA_MODEL` không khớp tên trong `ollama list`.
+- **Không kết nối được Ollama**: `docker compose ps` không thấy `ollama` đang chạy, hoặc `.env` ghi `127.0.0.1`.
+- **Ollama chưa có mô hình chat**: `sudo docker compose up -d --build` để `ollama-pull` chạy lại. Container đó phải thoát mã 0.
+- **Ollama từ chối câu trả lời**: `sudo docker compose exec -T ollama ollama list` không có đúng tên trong `OLLAMA_MODEL`.
